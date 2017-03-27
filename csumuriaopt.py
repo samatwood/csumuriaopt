@@ -847,7 +847,10 @@ class CNdist(BaseAnalysis):
         else:
             self._defvar = ['dN','dNdlogDp','dVdlogDp']
         # Scrub certain types of input variables by proper dimension
-        CNconc = np.atleast_1d(CNconc)
+        if CNconc is not None:
+            CNconc = np.atleast_1d(CNconc)
+        if Volconc is not None:
+            Volconc = np.atleast_1d(Volconc)
         if 'kappa' in var:
             var['kappa'] = np.atleast_2d(var['kappa'])
         if 'dry_m' in var:
@@ -856,7 +859,10 @@ class CNdist(BaseAnalysis):
         setattr(self, 'data', BlankObject())
         self._setup_dataobj(self.data, gvar, var)
         # Set number of data points in CNdist instance
-        self.ndp = CNconc.size
+        if CNconc is not None:
+            self.ndp = CNconc.size
+        elif Volconc is not None:
+            self.ndp = Volconc.size
         # Generate size distributions from a parameterized if needed
         if gen_dist:
             self._param_dist(num_parm, vol_parm, CNconc, Volconc, modes, modal_model, auto_bins=auto_bins, nbins=nbins)
@@ -1194,7 +1200,8 @@ class CNdist(BaseAnalysis):
             spam = (dNd * (np.pi/6.) * BinMid**3 * 1e-9) * dlogDp
             dVd = (spam/spam.sum()) / dlogDp
         elif parm_type == 'v':
-            dVd = np.array([mf(BinMid[b], f, vol_parm, modes) for b in range(ibins)])
+            #dVd = np.array([mf(BinMid[b], f, vol_parm, modes) for b in range(ibins)])
+            dVd = mf(BinMid, f, vol_parm, modes)
             # Calculate normalized number distribution with unit conversion from um^3 to nm^3
             spam = (dVd / (np.pi/6.) / BinMid**3 / 1e-9) * dlogDp
             dNd = (spam/spam.sum()) / dlogDp
@@ -2932,10 +2939,10 @@ class OptAnalysis(BaseAnalysis):
         else:
             self.n = self.__dict__[name].ndp
         # Fill default Optical instance if needed
-#        if self._optdef is None:
-#            self._optdef = self.__dict__[name]
-#        elif self._optdef.__name__ != 'opt' and name == 'opt':
-#            self._optdef = self.opt
+        if self._optdef is None:
+            self._optdef = self.__dict__[name]
+        elif self._optdef.__name__ != 'opt' and name == 'opt':
+            self._optdef = self.opt
 
     def opt_props(self, cn_dist, RH, opt_inst='opt'):
         """Resets the properties of an Optical class for the given CNdist populations and RH values.
@@ -2967,4 +2974,4 @@ class OptAnalysis(BaseAnalysis):
         if self._optdef is None:
             self.optical()
         # Explicit delgation of Optical._ext_calc()
-        return self.opt._ext_calc(N, wl, Dp, m=m, DpC=DpC, mC=mC, ret_ext=ret_ext)
+        return self._optdef._ext_calc(N, wl, Dp, m=m, DpC=DpC, mC=mC, ret_ext=ret_ext)

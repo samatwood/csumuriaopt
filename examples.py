@@ -166,6 +166,8 @@ Returns:
     Extinction Coefficient(s) in units of (Mm^-1)
 Note: Explicit delegation of method from Optical() class.
 """
-spam.ext_calc(N=100., Dp=200., wl=550., m=np.complex(1.53, 0.0))
+rslt = spam.ext_calc(N=100., Dp=200., wl=550., m=np.complex(1.53, 0.0))
 
+# print extinction result
+print rslt
 
