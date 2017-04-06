@@ -2365,6 +2365,74 @@ class Optical(BaseAnalysis):
 
         return P #/P0
 
+    def _S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
+        Assumes spherical particles and cores/shells.
+        NOTE: the imaginary component of the index of refraction (absorption) should be
+        positive, e.g. opposite of actual value.
+        Arguments:
+            Dp:     Diameter of particles (nm) or shell diameter
+            wl:     Wavelength of light for scattering calc (nm)
+            costh:  Cosine of the scattering angle (range: -1 <= costh <=1)
+            m:      Complex refractive index or shell
+            DpC:    Core Diameter of particles (nm) or None
+            mC:     Core complex refractive index or None
+        Returns:
+            tuple of (S1, S2)
+        """
+        if np.isnan([wl, Dp]).any():
+            return np.NaN
+        # Single index of refraction
+        if DpC is None:
+            # Get Shape Parameter and Scattering Efficiency
+            alpha = np.pi * Dp / wl
+            self.mie._set_x(alpha)
+            self.mie._set_m(m)
+            return self.mie.S12(costh)
+        else:
+            # Get Shape Parameter and Scattering Efficiency
+            alpha1 = np.pi * Dp / wl
+            alpha2 = np.pi * DpC / wl
+            self.miecoat._set_y(alpha1)
+            self.miecoat._set_x(alpha2)
+            self.miecoat._set_m(mC)
+            self.miecoat._set_m2(m)
+            return self.miecoat.S12(costh)
+
+    def _asy_calc(self, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates the asymmetry parameter using Mie theory.
+        Assumes spherical particles and cores/shells.
+        NOTE: the imaginary component of the index of refraction (absorption) should be
+        positive, e.g. opposite of actual value.
+        Arguments:
+            Dp:     Diameter of particles (nm) or shell diameter
+            wl:     Wavelength of light for scattering calc (nm)
+            m:      Complex refractive index or shell
+            DpC:    Core Diameter of particles (nm) or None
+            mC:     Core complex refractive index or None
+
+        Returns:
+            Asymmetry parameter
+        """
+        if np.isnan([wl, Dp]).any():
+            return np.NaN
+        # Single index of refraction
+        if DpC is None:
+            # Get Shape Parameter and Scattering Efficiency
+            alpha = np.pi * Dp / wl
+            self.mie._set_x(alpha)
+            self.mie._set_m(m)
+            return self.mie.asy()
+        else:
+            # Get Shape Parameter and Scattering Efficiency
+            alpha1 = np.pi * Dp / wl
+            alpha2 = np.pi * DpC / wl
+            self.miecoat._set_y(alpha1)
+            self.miecoat._set_x(alpha2)
+            self.miecoat._set_m(mC)
+            self.miecoat._set_m2(m)
+            return self.miecoat.asy()
+
     def _ext_calc(self, N, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None, ret_ext=True):
         """Calculates extinction due to scattering and absorption using Mie theory.
         Assumes spherical particles and cores/shells.
@@ -2952,6 +3020,7 @@ class OptAnalysis(BaseAnalysis):
 
     def ext_calc(self, N, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None, ret_ext=True):
         """Calculates extinction due to scattering and absorption using Mie theory.
+        Pass through method for access to Optical._ext_calc().
         Assumes spherical particles and cores/shells.
         NOTE: the imaginary component of the index of refraction (absorption) should be
         positive, e.g. opposite of actual value.
@@ -2975,3 +3044,47 @@ class OptAnalysis(BaseAnalysis):
             self.optical()
         # Explicit delgation of Optical._ext_calc()
         return self._optdef._ext_calc(N, wl, Dp, m=m, DpC=DpC, mC=mC, ret_ext=ret_ext)
+
+    def ssa_calc(self, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates particle single scatter albedo using Mie theory.
+        Uses the self.ext_calc() result to get scattering and absorption coefficients
+        and uses these to calculate single scatter albedo for a single particle.
+        See self.ext_calc() docstring for parameter information.
+        Returns:
+            Single scatter albedo
+        """
+        spam = self.ext_calc(1., wl, Dp, m=m, DpC=DpC, mC=mC, ret_ext=False)
+        return spam.real / (spam.real+spam.imag)
+
+    def asy_calc(self, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates particle asymmetry parameter using Mie theory.
+        See self.ext_calc() docstring for parameter information.
+        Returns:
+            Asymmetry parameter
+        Note: Explicit delegation of method from Optical() class.
+        """
+        # Check if the needed default CNdist and Optical class instances extists and instantiates it if not
+        if self._cndef is None:
+            self._mk_cndef()
+        if self._optdef is None:
+            self.optical()
+
+        return self._optdef._asy_calc(wl, Dp, m=m, DpC=DpC, mC=mC)
+
+    def S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
+        See self.ext_calc() docstring for parameter information.
+        Additional Parameters:
+            costh:  Cosine of the scattering angle (range: -1 <= costh <=1)
+        Returns:
+            tuple of (S1, S2)
+        Note: Explicit delegation of method from Optical() class.
+        """
+        # Check if the needed default CNdist and Optical class instances extists and instantiates it if not
+        if self._cndef is None:
+            self._mk_cndef()
+        if self._optdef is None:
+            self.optical()
+
+        return self._optdef._S12_calc(wl, Dp, costh, m=m, DpC=DpC, mC=mC)
+

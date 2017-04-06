@@ -166,8 +166,22 @@ Returns:
     Extinction Coefficient(s) in units of (Mm^-1)
 Note: Explicit delegation of method from Optical() class.
 """
-rslt = spam.ext_calc(N=100., Dp=200., wl=550., m=np.complex(1.53, 0.0))
+rslt = spam.ext_calc(N=100., Dp=200., wl=550., m=np.complex(1.54, 0.02))
 
 # print extinction result
 print rslt
 
+# Single scatter albedo for the same case
+rslt = spam.ssa_calc(Dp=200., wl=550., m=np.complex(1.54, 0.02))
+
+print rslt
+
+# Asymmetry parameter for the same case
+rslt = spam.asy_calc(Dp=200., wl=550., m=np.complex(1.54, 0.02))
+
+print rslt
+
+# Aplitude scattering matrix components S1 and S2 for the same case
+rslt = spam.S12_calc(Dp=200., wl=550., m=np.complex(1.54, 0.02))
+
+print rslt
