@@ -2425,9 +2425,6 @@ class Optical(BaseAnalysis):
     def _leg_coeff_calc(self, l, wl, Dp, m):
         return 1./2. * sp.integrate.quad(self._leg_coeff_func, -1., 1., args=(l,wl,Dp,m))[0]
 
-    def _leg_coeff_calc2(self, l, wl, Dp, m):
-        return 1./2. * sp.integrate.romberg(self._leg_coeff_func, -1., 1., args=(l,wl,Dp,m))
-
     def legendre_coeffs(self, wl, Dp, m, nc=None):
         """Computes the Legendre Coefficients.
         
