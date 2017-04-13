@@ -37,7 +37,7 @@ var = {'kappa':kappa, 'dry_m':dry_m}
 # - Crete a new aerosol population called 'pop1' using the cn_dist() method -
 spam.cn_dist(name_ovr='pop1',
              num_parm=parms, CNconc=cn_conc, modes=modes,
-             auto_bins=True, nbins=100,
+             auto_bins=False, nbins=100,
              var=var)
 
 # - Data and information about the new aerosol population can be accessed -
@@ -45,6 +45,33 @@ spam.cn_dist(name_ovr='pop1',
 print spam.pop1.data.BinMid.d
 # The bin dN/dlogDp values
 print spam.pop1.data.dNdlogDp.d
+
+
+# --- Aerosol population example 1: single mode ---
+# - A new lognormally distributed aerosol population will be created based on parameterized values -
+modes = 1                       # Number of modes in distribution
+mu = 2769.6                       # Median diameter (nm)
+gsd = 1.00000                       # Geometric standard deviation
+mf = 1.0                        # Modal number fraction
+vol_conc = 1.                  # Total number concentration (#/cm^3)
+kappa = 0.61                    # Modal kappa hygroscopicity parameter
+dry_m = np.complex(1.54,0.002)  # Modal complex index of refraction
+# - Setup variables -
+# parameters for each mode are sent as arrays in the form:
+parms = np.array([mu,gsd,mf])
+# kappa and refractive index variables to be used by hygroscopicity and mie classes
+var = {'kappa':kappa, 'dry_m':dry_m}
+# First create a custom set of bin midpoint diameters to use
+Dp_low = 2769.6            # Smallest size bin midpoint
+Dp_up = 2770.          # Largest size bin midpoint
+nbins = 1              # number of bins to create
+BinMid = np.logspace(np.log10(Dp_low),np.log10(Dp_up),nbins)    # a lognormally spaced set of bins
+gvar = {'BinMid':BinMid}
+# - Crete a new aerosol population called 'pop1' using the cn_dist() method -
+spam.cn_dist(name_ovr='pop1',
+             num_parm=parms, Volconc=vol_conc, modes=modes,
+             auto_bins=False, nbins=1,
+             gvar=gvar, var=var)
 
 # --- Aerosol population example 2: multi-modal with specified bin midpoint diameters and multiple data points ---
 # - A new lognormally distributed aerosol population will be created based on parameterized values -

@@ -2340,13 +2340,14 @@ class Optical(BaseAnalysis):
         Intensity is a function of angle and is calculated as a relative fraction
         of the forward scattering (zero degrees relative to incident light).
         NOTE: core shell version not setup yet.
+        Note that units for both wl and Dp should be the same
         Parameters:
-            theta:  Angle of the phase function relative to incident light (deg)
-            wl:     Wavelength of light for scattering calc (nm)
-            Dp:     Diameter of particles (nm) or core diameter
+            theta:  Angle(s) of the phase function relative to incident light (deg)
+            wl:     Wavelength of light for scattering calc
+            Dp:     Diameter of particles or core diameter
             m:      Complex refractive index or core
         """
-        if np.isnan([theta, wl, Dp, m]).any():
+        if np.isnan(theta) or np.isnan([wl, Dp, m]).any():
             return np.NaN
         # Single index of refraction
         #if DpC is None:
@@ -2357,8 +2358,14 @@ class Optical(BaseAnalysis):
         self.mie._set_m(m)
         qsca = self.mie.qsca()
         Csca = qsca * np.pi * (Dp/2.)**2    # Scattering cross section
-        S1, S2 = self.mie.S12(np.cos(np.deg2rad(theta)))
-        P = ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+        if np.isscalar(theta):
+            S1, S2 = self.mie.S12(np.cos(np.deg2rad(theta)))
+            P = ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+        else:
+            P = np.zeros(len(theta))
+            for i in range(len(theta)):
+                S1, S2 = self.mie.S12(np.cos(np.deg2rad(theta[i])))
+                P[i] = ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
 
         #else:
         #    raise Exception
@@ -2398,6 +2405,41 @@ class Optical(BaseAnalysis):
             self.miecoat._set_m(mC)
             self.miecoat._set_m2(m)
             return self.miecoat.S12(costh)
+
+    def _scf_fast(self, costh, wl, Dp, m):
+        self.mie._set_x(np.pi * Dp / wl)
+        self.mie._set_m(m)
+        qsca = self.mie.qsca()
+        Csca = qsca * np.pi * (Dp/2.)**2
+        S1, S2 = self.mie.S12(costh)
+        return ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+
+    def _leg_poly_calc(self, l, x):
+        """Zero indexed function to return value of lth term of l-order legendre polynomial at x."""
+        # TODO: Very inefficient way of doing this. Need to find a better (preferably built in) solution
+        return np.polynomial.legendre.legval(x,[0.]*int(l)+[l])
+
+    def _leg_coeff_func(self, costh, l, wl, Dp, m):
+        return self._scf_fast(costh, wl, Dp, m) * self._leg_poly_calc(l, costh)
+
+    def _leg_coeff_calc(self, l, wl, Dp, m):
+        return 1./2. * sp.integrate.quad(self._leg_coeff_func, -1., 1., args=(l,wl,Dp,m))[0]
+
+    def _leg_coeff_calc2(self, l, wl, Dp, m):
+        return 1./2. * sp.integrate.romberg(self._leg_coeff_func, -1., 1., args=(l,wl,Dp,m))
+
+    def legendre_coeffs(self, wl, Dp, m, nc=None):
+        """Computes the Legendre Coefficients.
+        
+        :param wl:      Wavelength of light for scattering calc (nm)
+        :param Dp:      Diameter of particles (nm) or core diameter
+        :param m:       Complex refractive index of particle
+        :param nc:      Number of Legendre coefficients to compute. Auto if None.
+        :param n_angle: Number of angles to integrate phase function across
+        :return:        Legendre Coefficients as numpy array
+        """
+        # Calculate lth term Legendre coefficient for each term returned by Mie code
+        chi_l = wl
 
     def _asy_calc(self, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates the asymmetry parameter using Mie theory.
