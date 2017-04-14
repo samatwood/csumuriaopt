@@ -2335,42 +2335,50 @@ class Optical(BaseAnalysis):
         setattr(self.miecoat, '_cache', pym.mie_aux.Cache(self._mie_cache_size))
         gc.collect()
 
-    def _scat_phase_func(self, theta, wl, Dp, m):
-        """Calculates the single particle scattering phase function intensity.
-        Intensity is a function of angle and is calculated as a relative fraction
-        of the forward scattering (zero degrees relative to incident light).
+    def _scat_intens_func(self, theta):
+        """Scattered intensity calculated from amplitude function.
+        theta in radians
+        Assumes spherical particles, etc...
+        NOTE: Does not set mie parameters! Size and complex index of
+        refraction parameters !!MUST!! be set before calling this function.
+        """
+        S1, S2 = self.mie.S12(np.cos(theta))
+        return ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+
+    def _scat_intens_func2(self, theta):
+        """Scattered intensity times sin(theta).
+        theta in radians
+        for integral calc
+        NOTE: Does not set mie parameters! Size and complex index of
+        refraction parameters !!MUST!! be set before calling this function.
+        """
+        return self._scat_intens_func(theta) * np.sin(theta)
+
+    def scat_phase_func(self, theta, wl, Dp, m):
+        """Calculates the single particle normalized scattering phase function.
+        Assumes spherical particles.
+        Units of wavelength and particle diameter should be the same.
         NOTE: core shell version not setup yet.
         Note that units for both wl and Dp should be the same
         Parameters:
-            theta:  Angle(s) of the phase function relative to incident light (deg)
+            theta:  Angle of the phase function relative to incident light (deg)
             wl:     Wavelength of light for scattering calc
             Dp:     Diameter of particles or core diameter
             m:      Complex refractive index or core
         """
-        if np.isnan(theta) or np.isnan([wl, Dp, m]).any():
-            return np.NaN
-        # Single index of refraction
-        #if DpC is None:
-
-        # Get Shape Parameter and Scattering Efficiency
+        # Set Size Parameter and ref ind in self.mie
         alpha = np.pi * Dp / wl
         self.mie._set_x(alpha)
         self.mie._set_m(m)
-        qsca = self.mie.qsca()
-        Csca = qsca * np.pi * (Dp/2.)**2    # Scattering cross section
+        # Calculate integral of scattered intensity at all angles
+        P0 = sp.integrate.quad(self._scat_intens_func2, 0.,np.pi)[0]
+        # Calculate intensity at desired angle
         if np.isscalar(theta):
-            S1, S2 = self.mie.S12(np.cos(np.deg2rad(theta)))
-            P = ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+            P = self._scat_intens_func(np.deg2rad(theta))
         else:
-            P = np.zeros(len(theta))
-            for i in range(len(theta)):
-                S1, S2 = self.mie.S12(np.cos(np.deg2rad(theta[i])))
-                P[i] = ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+            P = np.array([self._scat_intens_func(ti) for ti in np.deg2rad(theta)])
 
-        #else:
-        #    raise Exception
-
-        return P #/P0
+        return P/P0
 
     def _S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
@@ -2406,21 +2414,13 @@ class Optical(BaseAnalysis):
             self.miecoat._set_m2(m)
             return self.miecoat.S12(costh)
 
-    def _scf_fast(self, costh, wl, Dp, m):
-        self.mie._set_x(np.pi * Dp / wl)
-        self.mie._set_m(m)
-        qsca = self.mie.qsca()
-        Csca = qsca * np.pi * (Dp/2.)**2
-        S1, S2 = self.mie.S12(costh)
-        return ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
-
-    def _leg_poly_calc(self, l, x):
+    def _leg_poly_calc(self, x, l):
         """Zero indexed function to return value of lth term of l-order legendre polynomial at x."""
         # TODO: Very inefficient way of doing this. Need to find a better (preferably built in) solution
-        return np.polynomial.legendre.legval(x,[0.]*int(l)+[l])
+        return np.polynomial.legendre.legval(x,[0.]*int(l)+[1])
 
     def _leg_coeff_func(self, costh, l, wl, Dp, m):
-        return self._scf_fast(costh, wl, Dp, m) * self._leg_poly_calc(l, costh)
+        return self.scat_phase_func(np.rad2deg(np.arccos(costh)), wl, Dp, m) * self._leg_poly_calc(costh, l)
 
     def _leg_coeff_calc(self, l, wl, Dp, m):
         return 1./2. * sp.integrate.quad(self._leg_coeff_func, -1., 1., args=(l,wl,Dp,m))[0]
