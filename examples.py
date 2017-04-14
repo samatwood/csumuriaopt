@@ -6,6 +6,8 @@ Examples for various types of analyses using csumuriaopt.py Classes.
 
 import csumuriaopt as ada
 import numpy as np
+import scipy as sp
+import matplotlib.pylab as pl
 
 # ------ Setup ------
 np.set_printoptions(precision=4, suppress=True)         # printed output limited to 4 decimal places
@@ -185,3 +187,13 @@ print rslt
 rslt = spam.S12_calc(Dp=200., wl=550., m=np.complex(1.54, 0.02))
 
 print rslt
+
+# Normalized scattering phase function for the same case at 0 degrees
+rslt = spam.spf(0., Dp=200., wl=550., m=np.complex(1.54, 0.02))
+print rslt
+# Same, but for a list of angles that can be plotted
+angle_array = np.array(range(181))
+rslt = spam.spf(angle_array, Dp=200., wl=550., m=np.complex(1.54, 0.02))
+pl.figure()
+pl.yscale('log')
+pl.plot(angle_array, rslt)
