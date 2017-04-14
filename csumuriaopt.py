@@ -2335,35 +2335,49 @@ class Optical(BaseAnalysis):
         setattr(self.miecoat, '_cache', pym.mie_aux.Cache(self._mie_cache_size))
         gc.collect()
 
-    def _scat_phase_func(self, theta, wl, Dp, m):
-        """Calculates the single particle scattering phase function intensity.
-        Intensity is a function of angle and is calculated as a relative fraction
-        of the forward scattering (zero degrees relative to incident light).
+    def _scat_intens_func(self, theta):
+        """Scattered intensity calculated from amplitude function.
+        theta in radians
+        Assumes spherical particles, etc...
+        NOTE: Does not set mie parameters! Size and complex index of
+        refraction parameters !!MUST!! be set before calling this function.
+        """
+        S1, S2 = self.mie.S12(np.cos(theta))
+        return ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+
+    def _scat_intens_func2(self, theta):
+        """Scattered intensity times sin(theta).
+        theta in radians
+        for integral calc
+        NOTE: Does not set mie parameters! Size and complex index of
+        refraction parameters !!MUST!! be set before calling this function.
+        """
+        return self._scat_intens_func(theta) * np.sin(theta)
+
+    def scat_phase_func(self, theta, wl, Dp, m):
+        """Calculates the single particle normalized scattering phase function.
+        Assumes spherical particles.
+        Units of wavelength and particle diameter should be the same.
         NOTE: core shell version not setup yet.
         Parameters:
             theta:  Angle of the phase function relative to incident light (deg)
-            wl:     Wavelength of light for scattering calc (nm)
-            Dp:     Diameter of particles (nm) or core diameter
+            wl:     Wavelength of light for scattering calc
+            Dp:     Diameter of particles or core diameter
             m:      Complex refractive index or core
         """
-        if np.isnan([theta, wl, Dp, m]).any():
-            return np.NaN
-        # Single index of refraction
-        #if DpC is None:
-
-        # Get Shape Parameter and Scattering Efficiency
+        # Set Size Parameter and ref ind in self.mie
         alpha = np.pi * Dp / wl
         self.mie._set_x(alpha)
         self.mie._set_m(m)
-        qsca = self.mie.qsca()
-        Csca = qsca * np.pi * (Dp/2.)**2    # Scattering cross section
-        S1, S2 = self.mie.S12(np.cos(np.deg2rad(theta)))
-        P = ((4. * np.pi)/Csca) * ((np.abs(S1)**2 + np.abs(S2)**2)/2)
+        # Calculate integral of scattered intensity at all angles
+        P0 = sp.integrate.quad(self._scat_intens_func2, 0.,np.pi)[0]
+        # Calculate intensity at desired angle
+        if np.isscalar(theta):
+            P = self._scat_intens_func(np.deg2rad(theta))
+        else:
+            P = np.array([self._scat_intens_func(ti) for ti in np.deg2rad(theta)])
 
-        #else:
-        #    raise Exception
-
-        return P #/P0
+        return P/P0
 
     def _S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
@@ -3071,11 +3085,11 @@ class OptAnalysis(BaseAnalysis):
 
         return self._optdef._asy_calc(wl, Dp, m=m, DpC=DpC, mC=mC)
 
-    def S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+    def S12_calc(self, theta, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
         See self.ext_calc() docstring for parameter information.
         Additional Parameters:
-            costh:  Cosine of the scattering angle (range: -1 <= costh <=1)
+            theta:  Scattering angle (deg)
         Returns:
             tuple of (S1, S2)
         Note: Explicit delegation of method from Optical() class.
@@ -3088,3 +3102,20 @@ class OptAnalysis(BaseAnalysis):
 
         return self._optdef._S12_calc(wl, Dp, costh, m=m, DpC=DpC, mC=mC)
 
+    def spf(self, theta, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates the single particle normalized scattering phase function.
+        See self.ext_calc() docstring for parameter information.
+        Additional Parameters:
+            theta:  Scattering angle (deg) [list or array for multiple angles]
+        Returns:
+            Normalized scattering phase function at angle theta
+        Note: Explicit delegation of method from Optical() class.
+              Core/shell option not setup yet.
+        """
+        # Check if the needed default CNdist and Optical class instances extists and instantiates it if not
+        if self._cndef is None:
+            self._mk_cndef()
+        if self._optdef is None:
+            self.optical()
+
+        return self._optdef.scat_phase_func(theta, wl, Dp, m=m)
