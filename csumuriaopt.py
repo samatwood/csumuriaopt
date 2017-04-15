@@ -3124,11 +3124,11 @@ class OptAnalysis(BaseAnalysis):
 
         return self._optdef._asy_calc(wl, Dp, m=m, DpC=DpC, mC=mC)
 
-    def S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+    def S12_calc(self, theta, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
         See self.ext_calc() docstring for parameter information.
         Additional Parameters:
-            costh:  Cosine of the scattering angle (range: -1 <= costh <=1)
+            theta:  Scattering angle (deg)
         Returns:
             tuple of (S1, S2)
         Note: Explicit delegation of method from Optical() class.
@@ -3141,3 +3141,20 @@ class OptAnalysis(BaseAnalysis):
 
         return self._optdef._S12_calc(wl, Dp, costh, m=m, DpC=DpC, mC=mC)
 
+    def spf(self, theta, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
+        """Calculates the single particle normalized scattering phase function.
+        See self.ext_calc() docstring for parameter information.
+        Additional Parameters:
+            theta:  Scattering angle (deg) [list or array for multiple angles]
+        Returns:
+            Normalized scattering phase function at angle theta
+        Note: Explicit delegation of method from Optical() class.
+              Core/shell option not setup yet.
+        """
+        # Check if the needed default CNdist and Optical class instances extists and instantiates it if not
+        if self._cndef is None:
+            self._mk_cndef()
+        if self._optdef is None:
+            self.optical()
+
+        return self._optdef.scat_phase_func(theta, wl, Dp, m=m)
