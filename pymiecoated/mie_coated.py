@@ -182,6 +182,10 @@ class Mie(object):
         sig = self._params_signature()
         if sig not in self._cache:
             self._cache[sig] = MieScatterProps(sig)
+        # - SAA 25APR2016 added -
+        # Force recalculation for current u
+        self._cache[sig]._S12 = None
+        # - SAA -
         return self._cache[sig].S12(u)
 
 

@@ -2380,7 +2380,7 @@ class Optical(BaseAnalysis):
         return ((wl**2/(2*np.pi*Csca)) * (np.abs(S1)**2 + np.abs(S2)**2))
 
     def scat_phase_func(self, theta, wl, Dp, m):
-        """Calculates the single particle normalized scattering phase function.
+        """Calculates the single particle scattering phase function.
         Assumes spherical particles.
         Units of wavelength and particle diameter should be the same.
         NOTE: core shell version not setup yet.
@@ -2439,7 +2439,7 @@ class Optical(BaseAnalysis):
             lc = np.array([lc[l]*(2*l+1) for l in range(nc)])
         return lc
 
-    def leg_scf(self, theta, chi, alt=True):
+    def spf_leg(self, theta, chi, alt=True):
         """Computes reconstructed scattering phase function from legendre coefficients.
 
         :param theta:   Angle of the phase function relative to incident light (deg)
@@ -2448,9 +2448,15 @@ class Optical(BaseAnalysis):
                         if False, legendre coeffs are just chi_l
         """
         x = np.cos(np.deg2rad(theta))
-        if alt:
-            return np.sum([chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))])
-        return np.sum([(2*l+1)*chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))])
+        # Calculate intensity at desired angle
+        if np.isscalar(theta):
+            if alt:
+                return np.sum([chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))])
+            return np.sum([(2*l+1)*chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))])
+        else:
+            if alt:
+                return np.array([np.sum([chi[l]*self._leg_poly_calc(xx,l) for l in range(len(chi))]) for xx in x])
+            return np.array([np.sum([(2*l+1)*chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))]) for xx in x])
 
     def _asy_calc(self, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates the asymmetry parameter using Mie theory.
@@ -3142,12 +3148,12 @@ class OptAnalysis(BaseAnalysis):
         return self._optdef._S12_calc(wl, Dp, costh, m=m, DpC=DpC, mC=mC)
 
     def spf(self, theta, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
-        """Calculates the single particle normalized scattering phase function.
+        """Calculates the single particle scattering phase function.
         See self.ext_calc() docstring for parameter information.
         Additional Parameters:
             theta:  Scattering angle (deg) [list or array for multiple angles]
         Returns:
-            Normalized scattering phase function at angle theta
+            Scattering phase function at angle theta
         Note: Explicit delegation of method from Optical() class.
               Core/shell option not setup yet.
         """
@@ -3157,4 +3163,45 @@ class OptAnalysis(BaseAnalysis):
         if self._optdef is None:
             self.optical()
 
-        return self._optdef.scat_phase_func(theta, wl, Dp, m=m)
+        return self._optdef.scat_phase_func(theta, wl, Dp, m)
+
+    def legendre_coeffs(self, wl, Dp, m, nc=None, alt=True):
+        """Calculates the Legendre coefficients for the phase function.
+        See self.ext_calc() docstring for parameter information.
+        Additional Parameters:
+            nc:     Number of Legendre coefficients to compute. Auto if None.
+            alt:    if True, will multiply legendre coeffs by (2*l+1)
+        Returns:
+            Array of Legendre coefficients
+        Note: Explicit delegation of method from Optical() class.
+              Core/shell option not setup yet.
+        """
+        # Check if the needed default CNdist and Optical class instances extists and instantiates it if not
+        if self._cndef is None:
+            self._mk_cndef()
+        if self._optdef is None:
+            self.optical()
+
+        return self._optdef.legendre_coeffs(wl, Dp, m, nc, alt)
+
+    def spf_leg(self, theta, chi, alt=True):
+        """Computes reconstructed scattering phase function from legendre coefficients.
+        Parameters:
+            theta:  Angle of the phase function relative to incident light (deg)
+            chi:    Legendre Coefficients
+            alt:    if True, legendre coeffs are passed as chi_l * (2*l+1)
+                    if False, legendre coeffs are just chi_l
+        Returns:
+            Scattering phase function at angle theta from legendre reconstruction
+        Note: Explicit delegation of method from Optical() class.
+              Core/shell option not setup yet.
+        """
+        # Check if the needed default CNdist and Optical class instances extists and instantiates it if not
+        if self._cndef is None:
+            self._mk_cndef()
+        if self._optdef is None:
+            self.optical()
+
+        return self._optdef.spf_leg(theta, chi, alt)
+
+    # TODO: fix order of wl, Dp, m in methods to be consistent

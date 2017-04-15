@@ -197,3 +197,8 @@ rslt = spam.spf(angle_array, Dp=200., wl=550., m=np.complex(1.54, 0.02))
 pl.figure()
 pl.yscale('log')
 pl.plot(angle_array, rslt)
+
+# Calculate Legendre coefficients for the same case
+#   set nc to integer to return that number of coeffs, or None for automatic
+rslt = spam.legendre_coeffs(Dp=200., wl=550., m=np.complex(1.54, 0.02), nc=None)
+print rslt
