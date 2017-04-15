@@ -2335,51 +2335,6 @@ class Optical(BaseAnalysis):
         setattr(self.miecoat, '_cache', pym.mie_aux.Cache(self._mie_cache_size))
         gc.collect()
 
-    def _scat_intens_func(self, theta):
-        """Scattered intensity calculated from amplitude function.
-        theta in radians
-        Assumes spherical particles, etc...
-        NOTE: Does not set mie parameters! Size and complex index of
-        refraction parameters !!MUST!! be set before calling this function.
-        """
-        S1, S2 = self.mie.S12(np.cos(theta))
-        return ((np.abs(S1)**2 + np.abs(S2)**2)/2)
-
-    def _scat_intens_func2(self, theta):
-        """Scattered intensity times sin(theta).
-        theta in radians
-        for integral calc
-        NOTE: Does not set mie parameters! Size and complex index of
-        refraction parameters !!MUST!! be set before calling this function.
-        """
-        return self._scat_intens_func(theta) * np.sin(theta)
-
-    def scat_phase_func(self, theta, wl, Dp, m):
-        """Calculates the single particle normalized scattering phase function.
-        Assumes spherical particles.
-        Units of wavelength and particle diameter should be the same.
-        NOTE: core shell version not setup yet.
-        Note that units for both wl and Dp should be the same
-        Parameters:
-            theta:  Angle of the phase function relative to incident light (deg)
-            wl:     Wavelength of light for scattering calc
-            Dp:     Diameter of particles or core diameter
-            m:      Complex refractive index or core
-        """
-        # Set Size Parameter and ref ind in self.mie
-        alpha = np.pi * Dp / wl
-        self.mie._set_x(alpha)
-        self.mie._set_m(m)
-        # Calculate integral of scattered intensity at all angles
-        P0 = sp.integrate.quad(self._scat_intens_func2, 0.,np.pi)[0]
-        # Calculate intensity at desired angle
-        if np.isscalar(theta):
-            P = self._scat_intens_func(np.deg2rad(theta))
-        else:
-            P = np.array([self._scat_intens_func(ti) for ti in np.deg2rad(theta)])
-
-        return P/P0
-
     def _S12_calc(self, wl, Dp, costh, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates particle Mie theory amplitude scattering matrix components S1 and S2.
         Assumes spherical particles and cores/shells.
@@ -2414,6 +2369,42 @@ class Optical(BaseAnalysis):
             self.miecoat._set_m2(m)
             return self.miecoat.S12(costh)
 
+    def _scat_intens_func(self, theta, wl, Csca):
+        """Scattered intensity calculated from amplitude function.
+        theta in radians
+        Assumes spherical particles, etc...
+        NOTE: Does not set mie parameters! Size and complex index of
+        refraction parameters !!MUST!! be set before calling this function.
+        """
+        S1, S2 = self.mie.S12(np.cos(theta))
+        return ((wl**2/(2*np.pi*Csca)) * (np.abs(S1)**2 + np.abs(S2)**2))
+
+    def scat_phase_func(self, theta, wl, Dp, m):
+        """Calculates the single particle normalized scattering phase function.
+        Assumes spherical particles.
+        Units of wavelength and particle diameter should be the same.
+        NOTE: core shell version not setup yet.
+        Note that units for both wl and Dp should be the same
+        Parameters:
+            theta:  Angle of the phase function relative to incident light (deg)
+            wl:     Wavelength of light for scattering calc
+            Dp:     Diameter of particles or core diameter
+            m:      Complex refractive index or core
+        """
+        # Set Size Parameter and ref ind in self.mie
+        alpha = np.pi * Dp / wl
+        self.mie._set_x(alpha)
+        self.mie._set_m(m)
+        qsca = self.mie.qsca()
+        Csca = qsca * np.pi * (Dp/2.)**2
+        # Calculate intensity at desired angle
+        if np.isscalar(theta):
+            P = self._scat_intens_func(np.deg2rad(theta),wl,Csca)
+        else:
+            P = np.array([self._scat_intens_func(ti,wl,Csca) for ti in np.deg2rad(theta)])
+
+        return P
+
     def _leg_poly_calc(self, x, l):
         """Zero indexed function to return value of lth term of l-order legendre polynomial at x."""
         # TODO: Very inefficient way of doing this. Need to find a better (preferably built in) solution
@@ -2425,18 +2416,41 @@ class Optical(BaseAnalysis):
     def _leg_coeff_calc(self, l, wl, Dp, m):
         return 1./2. * sp.integrate.quad(self._leg_coeff_func, -1., 1., args=(l,wl,Dp,m))[0]
 
-    def legendre_coeffs(self, wl, Dp, m, nc=None):
+    def legendre_coeffs(self, wl, Dp, m, nc=None, alt=True):
         """Computes the Legendre Coefficients.
-        
+
         :param wl:      Wavelength of light for scattering calc (nm)
         :param Dp:      Diameter of particles (nm) or core diameter
         :param m:       Complex refractive index of particle
         :param nc:      Number of Legendre coefficients to compute. Auto if None.
-        :param n_angle: Number of angles to integrate phase function across
+        :param alt:     if True, will multiply legendre coeffs by (2*l+1)
         :return:        Legendre Coefficients as numpy array
         """
+        # Get number of coeffs to calculate
+        if nc is None:
+            try:
+                nc = self.mie._cache[self.mie._params_signature()]._coeffs.nmax
+            except KeyError:
+                spam = self.scat_phase_func(0., wl, Dp, m)  # analysis:ignore
+                nc = self.mie._cache[self.mie._params_signature()]._coeffs.nmax
         # Calculate lth term Legendre coefficient for each term returned by Mie code
-        chi_l = wl
+        lc = np.array([self._leg_coeff_calc(l, wl, Dp, m) for l in range(nc)])
+        if alt:
+            lc = np.array([lc[l]*(2*l+1) for l in range(nc)])
+        return lc
+
+    def leg_scf(self, theta, chi, alt=True):
+        """Computes reconstructed scattering phase function from legendre coefficients.
+
+        :param theta:   Angle of the phase function relative to incident light (deg)
+        :param chi:     Legendre Coefficients
+        :param alt:     if True, legendre coeffs are passed as chi_l * (2*l+1)
+                        if False, legendre coeffs are just chi_l
+        """
+        x = np.cos(np.deg2rad(theta))
+        if alt:
+            return np.sum([chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))])
+        return np.sum([(2*l+1)*chi[l]*self._leg_poly_calc(x,l) for l in range(len(chi))])
 
     def _asy_calc(self, wl, Dp, m=np.complex(1.53, 0.0), DpC=None, mC=None):
         """Calculates the asymmetry parameter using Mie theory.

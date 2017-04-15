@@ -6,6 +6,8 @@ Examples for various types of analyses using csumuriaopt.py Classes.
 
 import csumuriaopt as ada
 import numpy as np
+import scipy as sp
+import matplotlib.pylab as pl
 
 # ------ Setup ------
 np.set_printoptions(precision=4, suppress=True)         # printed output limited to 4 decimal places
@@ -37,7 +39,7 @@ var = {'kappa':kappa, 'dry_m':dry_m}
 # - Crete a new aerosol population called 'pop1' using the cn_dist() method -
 spam.cn_dist(name_ovr='pop1',
              num_parm=parms, CNconc=cn_conc, modes=modes,
-             auto_bins=False, nbins=100,
+             auto_bins=True, nbins=100,
              var=var)
 
 # - Data and information about the new aerosol population can be accessed -
@@ -45,33 +47,6 @@ spam.cn_dist(name_ovr='pop1',
 print spam.pop1.data.BinMid.d
 # The bin dN/dlogDp values
 print spam.pop1.data.dNdlogDp.d
-
-
-# --- Aerosol population example 1: single mode ---
-# - A new lognormally distributed aerosol population will be created based on parameterized values -
-modes = 1                       # Number of modes in distribution
-mu = 2769.6                       # Median diameter (nm)
-gsd = 1.00000                       # Geometric standard deviation
-mf = 1.0                        # Modal number fraction
-vol_conc = 1.                  # Total number concentration (#/cm^3)
-kappa = 0.61                    # Modal kappa hygroscopicity parameter
-dry_m = np.complex(1.54,0.002)  # Modal complex index of refraction
-# - Setup variables -
-# parameters for each mode are sent as arrays in the form:
-parms = np.array([mu,gsd,mf])
-# kappa and refractive index variables to be used by hygroscopicity and mie classes
-var = {'kappa':kappa, 'dry_m':dry_m}
-# First create a custom set of bin midpoint diameters to use
-Dp_low = 2769.6            # Smallest size bin midpoint
-Dp_up = 2770.          # Largest size bin midpoint
-nbins = 1              # number of bins to create
-BinMid = np.logspace(np.log10(Dp_low),np.log10(Dp_up),nbins)    # a lognormally spaced set of bins
-gvar = {'BinMid':BinMid}
-# - Crete a new aerosol population called 'pop1' using the cn_dist() method -
-spam.cn_dist(name_ovr='pop1',
-             num_parm=parms, Volconc=vol_conc, modes=modes,
-             auto_bins=False, nbins=1,
-             gvar=gvar, var=var)
 
 # --- Aerosol population example 2: multi-modal with specified bin midpoint diameters and multiple data points ---
 # - A new lognormally distributed aerosol population will be created based on parameterized values -
@@ -212,3 +187,13 @@ print rslt
 rslt = spam.S12_calc(Dp=200., wl=550., m=np.complex(1.54, 0.02))
 
 print rslt
+
+# Normalized scattering phase function for the same case at 0 degrees
+rslt = spam.spf(0., Dp=200., wl=550., m=np.complex(1.54, 0.02))
+print rslt
+# Same, but for a list of angles that can be plotted
+angle_array = np.array(range(181))
+rslt = spam.spf(angle_array, Dp=200., wl=550., m=np.complex(1.54, 0.02))
+pl.figure()
+pl.yscale('log')
+pl.plot(angle_array, rslt)
