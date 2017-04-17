@@ -83,8 +83,7 @@ def single_mie_coeff(eps,mu,x):
     z = sqrt(eps*mu)*x
     m = sqrt(eps/mu)
 
-    #nmax = int(round(2+x+4*x**(1.0/3.0)))
-    nmax = 24
+    nmax = int(round(2+x+4*x**(1.0/3.0)))
     nmax1 = nmax-1
     nmx = int(round(max(nmax,abs(z))+16))
     n = arange(nmax)

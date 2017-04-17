@@ -2426,17 +2426,28 @@ class Optical(BaseAnalysis):
         :param alt:     if True, will multiply legendre coeffs by (2*l+1)
         :return:        Legendre Coefficients as numpy array
         """
-        # Get number of coeffs to calculate
+        # If number of coefficients to calculate is not given, keep calculating
+        # until lc[l]*(2*l+1) is less than 0.00001
         if nc is None:
-            try:
-                nc = self.mie._cache[self.mie._params_signature()]._coeffs.nmax
-            except KeyError:
-                spam = self.scat_phase_func(0., wl, Dp, m)  # analysis:ignore
-                nc = self.mie._cache[self.mie._params_signature()]._coeffs.nmax
-        # Calculate lth term Legendre coefficient for each term returned by Mie code
-        lc = np.array([self._leg_coeff_calc(l, wl, Dp, m) for l in range(nc)])
-        if alt:
-            lc = np.array([lc[l]*(2*l+1) for l in range(nc)])
+            lc = []
+            spam = 1.0
+            l = 0
+            if alt:
+                while abs(spam) >= 0.00001:
+                    eggs = self._leg_coeff_calc(l, wl, Dp, m)
+                    spam = eggs*(2*l+1)
+                    l+=1
+                    lc.append(spam)
+            else:
+                while abs(spam) >= 0.00001:
+                    eggs = self._leg_coeff_calc(l, wl, Dp, m)
+                    spam = eggs*(2*l+1)
+                    l+=1
+                    lc.append(eggs)
+        else:
+            lc = np.array([self._leg_coeff_calc(l, wl, Dp, m) for l in range(nc)])
+            if alt:
+                lc = np.array([lc[l]*(2*l+1) for l in range(nc)])
         return lc
 
     def spf_leg(self, theta, chi, alt=True):
