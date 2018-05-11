@@ -1,5 +1,5 @@
 
-from csumuriaopt import *
+from csumuriaopt.analysis import *
 
 # ---Package Info---
 __author__ = 'Sam Atwood'

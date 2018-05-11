@@ -20,9 +20,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 from numpy import sqrt
-from pymiecoated.mie_coeffs import MieCoeffs
-from pymiecoated.mie_aux import Cache
-from pymiecoated.mie_props import mie_props, mie_S12
+from csumuriaopt.pymiecoated.mie_coeffs import MieCoeffs
+from csumuriaopt.pymiecoated.mie_aux import Cache
+from csumuriaopt.pymiecoated.mie_props import mie_props, mie_S12
 
 
 class MieScatterProps(object):
@@ -168,7 +168,6 @@ class Mie(object):
             Follows the conventions of Bohren and Huffman (1983).
         """
         return self._get_S12(u)
-
 
     def _get_scatt_prop(self, prop):
         sig = self._params_signature()

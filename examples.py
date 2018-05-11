@@ -1,10 +1,10 @@
 # Example use script for csumuriaopt.py
 
 """
-Examples for various types of analyses using csumuriaopt.py Classes.
+Examples for various types of analyses using analysis.py Classes.
 """
 
-import csumuriaopt as ada
+import analysis as ada
 import numpy as np
 import scipy as sp
 import matplotlib.pylab as pl
@@ -94,7 +94,7 @@ var = {'RH':RH}
 # - Create a new optical instance called 'opt1' -
 spam.optical(cn_dist=spam.pop1, var=var, name_ovr='opt1')
 # - Run an extinction reconstruction for the instance -
-spam.opt1.ext_recon(varname='Ext_550_wet',              # name the variable to be reconstructed
+spam.opt1.ext_recon_mie(varname='Ext_550_wet',              # name the variable to be reconstructed
                    wl=550.,                             # run at wavelength of 550 nm
                    ind_mix=True,                        # conduct volume averaging for refractive index
                    ret_ext=False,                       # calculate result based on scattering and absorption separately (True calculates extinction)
@@ -115,7 +115,7 @@ var = {'RH':RH}
 # - Create a new optical instance called 'opt2' -
 eggs.optical(cn_dist=eggs.pop2, var=var, name_ovr='opt2')
 # - Run an extinction reconstruction for the instance -
-eggs.opt2.ext_recon(varname='Ext_550_wet',              # name the variable to be reconstructed
+eggs.opt2.ext_recon_mie(varname='Ext_550_wet',              # name the variable to be reconstructed
                     wl=550.,                            # run at wavelength of 550 nm
                     ind_mix=True,                       # conduct volume averaging for refractive index
                     ret_ext=True,                       # calculate result based on extinction

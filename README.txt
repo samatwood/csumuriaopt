@@ -27,7 +27,7 @@ This code utilizes the pymiecoated python package (Copyright 2012-2013
 Jussi Leinonen), which implements Mie code based on Boren and Huffman, 1983.
 The pymiecoated package has been slightly modified (as noted in the code)
 to allow for changing the mie calculation memory cache size, and to correct
-small bugs that were enountered. The modified version is included with this
+small bugs that were encountered. The modified version is included with this
 package.
 
 This code is intended to be run using Python 2. It is not fully compatible
