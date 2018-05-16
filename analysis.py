@@ -3635,3 +3635,5 @@ class RAMS(ModelAnalysis):
         self._AOD_calc()
         # Save output to file
         self._save_output(file_name)
+        # Save example plot to file
+        self._plot.pop_AOD_method1(self._output_dir, file_name)

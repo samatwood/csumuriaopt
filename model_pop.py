@@ -256,7 +256,7 @@ def model_pop(wl, pop_opt_dir, pop_name_list=None, ret=False):
     mu = 690.                     # Median diameter (nm)
     gsd = 1.80                      # Geometric standard deviation
     mf = 1.0                        # Modal number fraction
-    kappa = 0.0                    # Modal kappa hygroscopicity parameter
+    kappa = 0.05                    # Modal kappa hygroscopicity parameter
     dry_m = np.complex(1.50,0.005)  # Modal complex index of refraction
     dens = 2.5                      # Density
     # - Setup variables -
@@ -279,7 +279,7 @@ def model_pop(wl, pop_opt_dir, pop_name_list=None, ret=False):
     mu = 2950.                     # Median diameter (nm)
     gsd = 1.80                      # Geometric standard deviation
     mf = 1.0                        # Modal number fraction
-    kappa = 0.0                    # Modal kappa hygroscopicity parameter
+    kappa = 0.05                    # Modal kappa hygroscopicity parameter
     dry_m = np.complex(1.50,0.005)  # Modal complex index of refraction
     dens = 2.65                      # Density
     # - Setup variables -

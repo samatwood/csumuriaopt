@@ -43,11 +43,11 @@ RAMS_pop_type_to_model_var = dict(
     RAMS_salt_film='salt_film_mass',
     RAMS_salt_jet='salt_jet_mass',
     RAMS_salt_spume='salt_spume_mass',
-    RAMS_dust1='salt_jet_mass',
-    RAMS_dust2='salt_jet_mass',
-    RAMS_ccn='salt_jet_mass',
-    RAMS_regen_aero1='salt_jet_mass',
-    RAMS_regen_aero2='salt_jet_mass'
+    RAMS_dust1='dust1_mass',
+    RAMS_dust2='dust2_mass',
+    RAMS_ccn='ccn_mass',
+    RAMS_regen_aero1='regen_aero1_mass',
+    RAMS_regen_aero2='regen_aero2_mass'
 )
 
 # RAMS_pop_types = ['RAMS_salt_film_alt', 'RAMS_salt_jet_alt', 'RAMS_salt_spume_alt']
@@ -137,5 +137,5 @@ print(end-start)
 
 # Plot methods
 if plot_output:
-    spam._plot.pop_AOD_example()
+    # spam._plot.pop_AOD_example()
     spam._plot.pop_fRH()

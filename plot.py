@@ -1,5 +1,6 @@
 # plot.py
 
+import os
 import numpy as np
 import matplotlib.colors as mplc
 import matplotlib.pylab as pl
@@ -489,6 +490,40 @@ class Plotting(object):
 
         pl.show()
 
+    def pop_AOD_method1(self, output_dir, file_name):
+        pl.figure(figsize=(10, 16))
+        pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        nrow = 5
+        ncol = 3
+        pn = 0
+
+        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume', 'RAMS_dust1', 'RAMS_dust2']
+        wl_ad = '_550'
+        aod_log = [False, False, True, False, False]
+        aod_min = [None, None, None, None, None]
+        aod_max = [0.01, 0.10, 1e-5, 2.0, 2.0]
+        xlim = [1e1, 3e5]
+
+        for i in range(len(names)):
+            n = names[i]
+            obj = getattr(self.parent.AOD, n)
+            obj2 = getattr(self.parent._analysis, n+wl_ad)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.dry.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_label='AOD', ax=ax)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.wet.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_label='AOD', ax=ax)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
+
+        # pl.show()
+        pl.savefig(os.path.join(output_dir, file_name + '.png'))
+        pl.close()
+
     def pop_fRH(self):
         pl.figure(figsize=(8, 6))
         # pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
@@ -497,15 +532,22 @@ class Plotting(object):
         pn = 0
 
         wl_ad = '_550'
+
         names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
         # names = ['RAMS_salt_film_alt', 'RAMS_salt_jet_alt', 'RAMS_salt_spume_alt']
         # names = self.parent._pop_types
         # names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
-        #          'WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
-        colors = ['c','b','r',
-                  'c','g','b','r']
+        # #          'WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
+        # colors = ['c','b','r',
+        #           'c','g','b','r']
+        # ls = ['-','-','-',
+        #       '--','--','--','--']
+
+        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume', 'RAMS_dust1', 'RAMS_dust2']
+        colors = ['c','b','m',
+                  'DarkOrange', 'r']
         ls = ['-','-','-',
-              '--','--','--','--']
+              '-','-',]
 
         for i in range(len(names)):
             n = names[i]
@@ -521,6 +563,7 @@ class Plotting(object):
         pl.ylabel('Mass Ext Eff')
         pl.xlabel('RH')
         pl.legend()
+        # pl.title('RAMS population types\nMass Extinction Efficiency - Testing')
         pl.title('RAMS & WRF sea salt population types\nMass Extinction Efficiency - Testing')
         pl.show()
 
@@ -541,5 +584,6 @@ class Plotting(object):
         pl.ylabel('Normalized\ndN/dlogDp')
         pl.legend()
         pl.title('RAMS & WRF sea salt population types\nNumber Size Distribution - Testing')
+        pl.title('RAMS population types\nNumber Size Distribution - Testing')
         pl.show()
 
