@@ -3564,23 +3564,23 @@ class RAMS(ModelAnalysis):
         ex_wet_group = ex_group.create_group('wet')
         # For each aerosol population type save the dry and wet ext and AOD values
         for pop_type in self._pop_types:
-            AOD_dry_group.create_dataset(pop_type, data=getattr(self.AOD, pop_type).dry.AOD, dtype=dtype)
-            AOD_wet_group.create_dataset(pop_type, data=getattr(self.AOD, pop_type).wet.AOD, dtype=dtype)
-            ex_dry_group.create_dataset(pop_type, data=getattr(self.ext, pop_type).dry, dtype=dtype)
-            ex_wet_group.create_dataset(pop_type, data=getattr(self.ext, pop_type).wet, dtype=dtype)
+            AOD_dry_group.create_dataset(pop_type, data=np.squeeze(getattr(self.AOD, pop_type).dry.AOD), dtype=dtype)
+            AOD_wet_group.create_dataset(pop_type, data=np.squeeze(getattr(self.AOD, pop_type).wet.AOD), dtype=dtype)
+            ex_dry_group.create_dataset(pop_type, data=np.squeeze(getattr(self.ext, pop_type).dry), dtype=dtype)
+            ex_wet_group.create_dataset(pop_type, data=np.squeeze(getattr(self.ext, pop_type).wet), dtype=dtype)
         # For total of all aerosol population types save the dry and wet ext and AOD values
         pop_type = 'Total'
         AOD_dry_group.create_dataset(pop_type,
-            data=np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0),
+            data=np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0)),
             dtype=dtype)
         AOD_wet_group.create_dataset(pop_type,
-            data=np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0),
+            data=np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0)),
             dtype=dtype)
         ex_dry_group.create_dataset(pop_type,
-            data=np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0),
+            data=np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0)),
             dtype=dtype)
         ex_wet_group.create_dataset(pop_type,
-            data=np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0),
+            data=np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0)),
             dtype=dtype)
 
         # --- netCDF4 save ---
@@ -3601,24 +3601,24 @@ class RAMS(ModelAnalysis):
         n_file.createDimension('x', self._shape[3])
         # For each aerosol population type save the dry and wet ext and AOD values
         for pop_type in self._pop_types:
-            var = AOD_dry_group.createVariable(pop_type, dtype, ('t','y','x'))
-            var[:] = getattr(self.AOD, pop_type).dry.AOD
-            var = AOD_wet_group.createVariable(pop_type, dtype, ('t','y','x'))
-            var[:] = getattr(self.AOD, pop_type).wet.AOD
-            var = ex_dry_group.createVariable(pop_type, dtype, ('t','z','y','x'))
-            var[:] = getattr(self.ext, pop_type).dry
-            var = ex_wet_group.createVariable(pop_type, dtype, ('t','z','y','x'))
-            var[:] = getattr(self.ext, pop_type).wet
+            var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
+            var[:] = np.squeeze(getattr(self.AOD, pop_type).dry.AOD)
+            var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
+            var[:] = np.squeeze(getattr(self.AOD, pop_type).wet.AOD)
+            var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
+            var[:] = np.squeeze(getattr(self.ext, pop_type).dry)
+            var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
+            var[:] = np.squeeze(getattr(self.ext, pop_type).wet)
         # For total of all aerosol population types save the dry and wet ext and AOD values
         pop_type = 'Total'
-        var = AOD_dry_group.createVariable(pop_type, dtype, ('t','y','x'))
-        var[:] = np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0)
-        var = AOD_wet_group.createVariable(pop_type, dtype, ('t','y','x'))
-        var[:] = np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0)
-        var = ex_dry_group.createVariable(pop_type, dtype, ('t','z','y','x'))
-        var[:] = np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0)
-        var = ex_wet_group.createVariable(pop_type, dtype, ('t','z','y','x'))
-        var[:] = np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0)
+        var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
+        var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0))
+        var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
+        var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0))
+        var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
+        var[:] = np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0))
+        var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
+        var[:] = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
 
     def _process_model_output(self, file_name):
         # Load the HDF5 file
