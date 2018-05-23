@@ -3352,7 +3352,7 @@ class ModelAnalysis(object):
         # Load Yang dust database methods
         # TODO:
         # Get all model files in directory
-        self.model_file_names = os.listdir(model_file_dir)
+        self.model_file_names = sorted(os.listdir(model_file_dir))
         # Create a data container for needed model output variables
         self._data = BlankObject()
         # Plotting
