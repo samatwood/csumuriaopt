@@ -256,7 +256,7 @@ def model_pop(wl, pop_opt_dir, pop_name_list=None, ret=False):
     mu = 690.                     # Median diameter (nm)
     gsd = 1.80                      # Geometric standard deviation
     mf = 1.0                        # Modal number fraction
-    kappa = 0.05                    # Modal kappa hygroscopicity parameter
+    kappa = 0.04                    # Modal kappa hygroscopicity parameter
     dry_m = np.complex(1.50,0.005)  # Modal complex index of refraction
     dens = 2.5                      # Density
     # - Setup variables -
@@ -282,6 +282,75 @@ def model_pop(wl, pop_opt_dir, pop_name_list=None, ret=False):
     kappa = 0.05                    # Modal kappa hygroscopicity parameter
     dry_m = np.complex(1.50,0.005)  # Modal complex index of refraction
     dens = 2.65                      # Density
+    # - Setup variables -
+    # parameters for each mode are sent as arrays in the form:
+    parms = np.array([mu,gsd,mf])
+    # kappa and refractive index variables to be used by hygroscopicity and mie classes
+    var = {'kappa':kappa, 'dry_m':dry_m, 'density':dens}
+    # - Crete a new aerosol population called 'pop1' using the cn_dist() method -
+    if name in pop_name_list or all_pop:
+        spam.pop_opt(name=name,
+                 wl=wl, ovr=recalc_pop_opt,
+                 num_parm=parms, modes=modes,
+                 auto_bins=True, nbins=100,
+                 var=var)
+
+    # - ccn mode -
+    # TODO: convert from effective radius to equivalent bin or distribution
+    name = 'RAMS_ccn'
+    modes = 1                       # Number of modes in distribution
+    mu = 40.                     # Median diameter (nm)
+    gsd = 1.80                      # Geometric standard deviation
+    mf = 1.0                        # Modal number fraction
+    kappa = 0.55                    # Modal kappa hygroscopicity parameter
+    dry_m = np.complex(1.524,1e-7)  # Modal complex index of refraction
+    dens = 1.76                      # Density
+    # - Setup variables -
+    # parameters for each mode are sent as arrays in the form:
+    parms = np.array([mu,gsd,mf])
+    # kappa and refractive index variables to be used by hygroscopicity and mie classes
+    var = {'kappa':kappa, 'dry_m':dry_m, 'density':dens}
+    # - Crete a new aerosol population called 'pop1' using the cn_dist() method -
+    if name in pop_name_list or all_pop:
+        spam.pop_opt(name=name,
+                 wl=wl, ovr=recalc_pop_opt,
+                 num_parm=parms, modes=modes,
+                 auto_bins=True, nbins=100,
+                 var=var)
+
+    # - regen_aero1 mode -
+    # TODO: convert from effective radius to equivalent bin or distribution
+    name = 'RAMS_regen_aero1'
+    modes = 1                       # Number of modes in distribution
+    mu = 40.                     # Median diameter (nm)
+    gsd = 1.80                      # Geometric standard deviation
+    mf = 1.0                        # Modal number fraction
+    kappa = 0.17                    # Modal kappa hygroscopicity parameter
+    dry_m = np.complex(1.524,6e-3)  # Modal complex index of refraction
+    dens = 2.4                      # Density
+    # - Setup variables -
+    # parameters for each mode are sent as arrays in the form:
+    parms = np.array([mu,gsd,mf])
+    # kappa and refractive index variables to be used by hygroscopicity and mie classes
+    var = {'kappa':kappa, 'dry_m':dry_m, 'density':dens}
+    # - Crete a new aerosol population called 'pop1' using the cn_dist() method -
+    if name in pop_name_list or all_pop:
+        spam.pop_opt(name=name,
+                 wl=wl, ovr=recalc_pop_opt,
+                 num_parm=parms, modes=modes,
+                 auto_bins=True, nbins=100,
+                 var=var)
+
+    # - regen_aero2 mode -
+    # TODO: convert from effective radius to equivalent bin or distribution
+    name = 'RAMS_regen_aero2'
+    modes = 1                       # Number of modes in distribution
+    mu = 1000.                     # Median diameter (nm)
+    gsd = 1.80                      # Geometric standard deviation
+    mf = 1.0                        # Modal number fraction
+    kappa = 0.17                    # Modal kappa hygroscopicity parameter
+    dry_m = np.complex(1.524,6e-3)  # Modal complex index of refraction
+    dens = 2.4                      # Density
     # - Setup variables -
     # parameters for each mode are sent as arrays in the form:
     parms = np.array([mu,gsd,mf])

@@ -24,7 +24,7 @@ pop_opt_dir=os.path.join(base_dir,'model_pop')
 dust_db_dir=os.path.join(base_dir,'dust_db')
 
 # - Run parameters -
-recompute_model_aerosol_types = True
+recompute_model_aerosol_types = False
 run_RAMS = True
 run_WRF = False
 run_Both = False
@@ -37,8 +37,8 @@ wl = 550.
 # - Aerosol Population Type usage -
 # All RAMS aerosol types
 RAMS_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
-                  'RAMS_dust1', 'RAMS_dust2']
-                  # 'RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
+                  'RAMS_dust1', 'RAMS_dust2',
+                  'RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
 RAMS_pop_type_to_model_var = dict(
     RAMS_salt_film='salt_film_mass',
     RAMS_salt_jet='salt_jet_mass',
