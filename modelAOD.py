@@ -106,7 +106,8 @@ if run_RAMS:
                     default_pop_types = RAMS_pop_types,
                     pop_type_to_model_var = RAMS_pop_type_to_model_var,
                     model_var_conc_type=RAMS_model_var_conc_type,
-                    process_all_files=True
+                    process_all_files=True,
+                    plotting=plot_output
                     )
 
 # WRF model
@@ -127,7 +128,8 @@ if run_Both:
                     default_pop_types = All_salt_pop_types,
                     pop_type_to_model_var = All_salt_pop_type_to_model_var,
                     model_var_conc_type=RAMS_model_var_conc_type,
-                    process_all_files=False
+                    process_all_files=True,
+                    plotting=plot_output
                     )
 
 

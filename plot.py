@@ -588,9 +588,9 @@ class Plotting(object):
 
         wl_ad = '_550'
 
-        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
+        # names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
         # names = ['RAMS_salt_film_alt', 'RAMS_salt_jet_alt', 'RAMS_salt_spume_alt']
-        # names = self.parent._pop_types
+        names = self.parent._pop_types
         # names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
         # #          'WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
         # colors = ['c','b','r',
@@ -598,11 +598,15 @@ class Plotting(object):
         # ls = ['-','-','-',
         #       '--','--','--','--']
 
-        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume', 'RAMS_dust1', 'RAMS_dust2']
-        colors = ['c','b','m',
-                  'DarkOrange', 'r']
-        ls = ['-','-','-',
-              '-','-',]
+        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
+                 'RAMS_dust1', 'RAMS_dust2',
+                 'RAMS_ccn',
+                 'RAMS_regen_aero1', 'RAMS_regen_aero2']
+        colors = ['c','b','steelblue',
+                  'DarkOrange', 'r',
+                  'm',
+                  'g','darkgreen']
+        ls = ['-']*8
 
         for i in range(len(names)):
             n = names[i]
@@ -618,8 +622,8 @@ class Plotting(object):
         pl.ylabel('Mass Ext Eff')
         pl.xlabel('RH')
         pl.legend()
-        # pl.title('RAMS population types\nMass Extinction Efficiency - Testing')
-        pl.title('RAMS & WRF sea salt population types\nMass Extinction Efficiency - Testing')
+        # pl.title('RAMS & WRF sea salt population types\nMass Extinction Efficiency - Testing')
+        pl.title('RAMS population types\nMass Extinction Efficiency - Testing')
         pl.show()
 
         # Number distribution as well
@@ -638,7 +642,7 @@ class Plotting(object):
         pl.xlabel('Diameter (nm)')
         pl.ylabel('Normalized\ndN/dlogDp')
         pl.legend()
-        pl.title('RAMS & WRF sea salt population types\nNumber Size Distribution - Testing')
+        # pl.title('RAMS & WRF sea salt population types\nNumber Size Distribution - Testing')
         pl.title('RAMS population types\nNumber Size Distribution - Testing')
         pl.show()
 

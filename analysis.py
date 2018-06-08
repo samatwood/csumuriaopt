@@ -3333,7 +3333,7 @@ class ModelAnalysis(object):
 
     @abc.abstractmethod
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
-                 pop_types=None, pop_type_to_model_var=None, process_all_files=True):
+                 pop_types=None, pop_type_to_model_var=None, process_all_files=True, plotting=False):
         self._wl = wl
         # Directory paths
         self._model_file_dir = model_file_dir
@@ -3361,7 +3361,7 @@ class ModelAnalysis(object):
         if process_all_files:
             for fn in self.model_file_names:
                 if not fn.startswith('.'):
-                    self._process_model_output(fn)
+                    self._process_model_output(fn, plotting=plotting)
 
     def _load_pop_types(self, file_path, file_names):
         for file_name in file_names:
@@ -3372,7 +3372,7 @@ class ModelAnalysis(object):
         return
 
     @abc.abstractmethod
-    def _process_model_output(self, file_name):
+    def _process_model_output(self, file_name, plotting=False):
         return
 
     @abc.abstractmethod
@@ -3429,7 +3429,7 @@ class RAMS(ModelAnalysis):
 
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                  default_pop_types=None, pop_type_to_model_var=None, model_var_conc_type=None,
-                 process_all_files=True):
+                 process_all_files=True, plotting=False):
         # Load WRF-CHEM population type objects
         if default_pop_types is None:
             default_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
@@ -3451,7 +3451,8 @@ class RAMS(ModelAnalysis):
                                    model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                                    pop_types=default_pop_types,
                                    pop_type_to_model_var=pop_type_to_model_var,
-                                   process_all_files=process_all_files
+                                   process_all_files=process_all_files,
+                                   plotting=plotting
                                    )
 
     def _load_model_file(self, file_name):
@@ -3620,7 +3621,7 @@ class RAMS(ModelAnalysis):
         var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
         var[:] = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
 
-    def _process_model_output(self, file_name):
+    def _process_model_output(self, file_name, plotting=False):
         # Load the HDF5 file
         self._load_model_file(file_name)
         # Load external given model parameters
@@ -3636,4 +3637,5 @@ class RAMS(ModelAnalysis):
         # Save output to file
         self._save_output(file_name)
         # Save example plot to file
-        self._plot.pop_AOD_method1(self._output_dir, file_name)
+        if plotting:
+            self._plot.pop_AOD_method1(self._output_dir, file_name)
