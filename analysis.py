@@ -3155,7 +3155,7 @@ class OptAnalysis(BaseAnalysis):
         if rh is None:
             if not 'RH' in kwargs:
                 rh = [0.]*self.n
-                kwargs.update(var={'RH':rh})
+                kwargs.update(var={'RH':rh})  # FIXME: bug for setting RH via this method
         # Create new Optical object that allows for an optical reconstruction
         Optical(self, CNdist=cn_dist, **kwargs)
         # Check that the new CNdist instance does not have a different number of data points than self.n
@@ -3333,7 +3333,8 @@ class ModelAnalysis(object):
 
     @abc.abstractmethod
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
-                 pop_types=None, pop_type_to_model_var=None, process_all_files=True, plotting=False):
+                 pop_types=None, pop_type_to_model_var=None, process_all_files=True, plotting=False,
+                 separate_pop_types=False):
         self._wl = wl
         # Directory paths
         self._model_file_dir = model_file_dir
@@ -3361,7 +3362,14 @@ class ModelAnalysis(object):
         if process_all_files:
             for fn in self.model_file_names:
                 if not fn.startswith('.'):
-                    self._process_model_output(fn, plotting=plotting)
+                    # Cheap hack workaround to separate population type analysis to get around memory limitations
+                    if separate_pop_types:
+                        for pt in pop_types:
+                            self._pop_types = [pt]
+                            self._pop_names = ['{}_{}'.format(pt, int(self._wl))]
+                            self._process_model_output(fn, plotting=plotting, name_append='-{}'.format(pt))
+                    else:
+                        self._process_model_output(fn, plotting=plotting)
 
     def _load_pop_types(self, file_path, file_names):
         for file_name in file_names:
@@ -3372,7 +3380,7 @@ class ModelAnalysis(object):
         return
 
     @abc.abstractmethod
-    def _process_model_output(self, file_name, plotting=False):
+    def _process_model_output(self, file_name, plotting=False, name_append=None):
         return
 
     @abc.abstractmethod
@@ -3429,7 +3437,7 @@ class RAMS(ModelAnalysis):
 
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                  default_pop_types=None, pop_type_to_model_var=None, model_var_conc_type=None,
-                 process_all_files=True, plotting=False):
+                 process_all_files=True, plotting=False, separate_pop_types=False):
         # Load WRF-CHEM population type objects
         if default_pop_types is None:
             default_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
@@ -3452,7 +3460,8 @@ class RAMS(ModelAnalysis):
                                    pop_types=default_pop_types,
                                    pop_type_to_model_var=pop_type_to_model_var,
                                    process_all_files=process_all_files,
-                                   plotting=plotting
+                                   plotting=plotting,
+                                   separate_pop_types=separate_pop_types
                                    )
 
     def _load_model_file(self, file_name):
@@ -3543,12 +3552,14 @@ class RAMS(ModelAnalysis):
                 setattr(AOD_pop_obj, 'AOD_frac', AOD_pop_obj.AOD_grid / AOD_pop_obj.AOD)
                 setattr(AOD_pop_obj, 'AOD_cumfrac', np.cumsum(AOD_pop_obj.AOD_frac, axis=1))
 
-    def _save_output(self, file_name):
+    def _save_output(self, file_name, name_append=None):
         # Set the data type to save floating point values as (affects resulting file size)
         dtype = 'f4'  # Default 4 byte (32 bit) floating point
+        if name_append is None:
+            name_append = ''
         # Modify file name to indicate optical data output
         file_name_components = file_name.split('.')
-        file_name_components[-2] = file_name_components[-2] + '-opt'
+        file_name_components[-2] = file_name_components[-2] + '-opt' + name_append
         h_file_name = '.'.join(file_name_components[:-1]+['h5'])
         n_file_name = '.'.join(file_name_components[:-1]+['nc'])
 
@@ -3621,7 +3632,7 @@ class RAMS(ModelAnalysis):
         var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
         var[:] = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
 
-    def _process_model_output(self, file_name, plotting=False):
+    def _process_model_output(self, file_name, plotting=False, name_append=None):
         # Load the HDF5 file
         self._load_model_file(file_name)
         # Load external given model parameters
@@ -3635,7 +3646,7 @@ class RAMS(ModelAnalysis):
         # Reconstruct AOD for each grid column
         self._AOD_calc()
         # Save output to file
-        self._save_output(file_name)
+        self._save_output(file_name, name_append)
         # Save example plot to file
         if plotting:
             self._plot.pop_AOD_method1(self._output_dir, file_name)

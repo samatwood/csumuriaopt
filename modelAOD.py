@@ -29,6 +29,8 @@ run_RAMS = True
 run_WRF = False
 run_Both = False
 plot_output = False
+# For memory limited issues
+separate_pop_types = True
 
 # - Reconstruction parameters -
 # Wavelength (nm)
@@ -107,7 +109,8 @@ if run_RAMS:
                     pop_type_to_model_var = RAMS_pop_type_to_model_var,
                     model_var_conc_type=RAMS_model_var_conc_type,
                     process_all_files=True,
-                    plotting=plot_output
+                    plotting=plot_output,
+                    separate_pop_types=separate_pop_types
                     )
 
 # WRF model
@@ -129,7 +132,8 @@ if run_Both:
                     pop_type_to_model_var = All_salt_pop_type_to_model_var,
                     model_var_conc_type=RAMS_model_var_conc_type,
                     process_all_files=True,
-                    plotting=plot_output
+                    plotting=plot_output,
+                    separate_pop_types=separate_pop_types
                     )
 
 
