@@ -46,8 +46,7 @@ class MieScatterProps(object):
         return self._props[prop_name]
 
     def S12(self, u):
-        if self._S12 is None:
-            self._S12 = mie_S12(self._coeffs, u)
+        self._S12 = mie_S12(self._coeffs, u)
         return self._S12
 
 
@@ -169,6 +168,7 @@ class Mie(object):
         """
         return self._get_S12(u)
 
+
     def _get_scatt_prop(self, prop):
         sig = self._params_signature()
         if sig not in self._cache:
@@ -181,10 +181,6 @@ class Mie(object):
         sig = self._params_signature()
         if sig not in self._cache:
             self._cache[sig] = MieScatterProps(sig)
-        # - SAA 25APR2016 added -
-        # Force recalculation for current u
-        self._cache[sig]._S12 = None
-        # - SAA -
         return self._cache[sig].S12(u)
 
 

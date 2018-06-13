@@ -75,7 +75,7 @@ import abc
 import dill as picklem
 import copy
 from numpy import intersect1d as i1
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, interp2d, RectBivariateSpline
 #from numpy import union1d as u1
 import bisect
 import fnmatch
@@ -3037,11 +3037,19 @@ class OptAnalysis(BaseAnalysis):
         elif self._cndef.__name__ != 'cn' and name == 'cn':
             self._cndef = self.cn
 
-    def _pop_opt_save(self, pop_opt_obj):
+    def _pop_opt_save(self, pop_opt_obj, mu_interp=False):
         # Remove pymiecoated instances before pickling
         spam = copy.deepcopy(pop_opt_obj)
-        spam.opt.mie = None
-        spam.opt.miecoat = None
+        if mu_interp:
+            for eggs in spam.mu_dist_objs:
+                ham = getattr(spam, eggs)
+                ham.opt.mie = None
+                ham.opt.miecoat = None
+            spam._mu_interp = True
+        else:
+            spam.opt.mie = None
+            spam.opt.miecoat = None
+            spam._mu_interp = False
         with open(os.path.join(self._pop_opt_dir, spam.__name__), 'wb') as f:
             picklem.dump(spam, f)
 
@@ -3050,10 +3058,26 @@ class OptAnalysis(BaseAnalysis):
             setattr(self, file_name, picklem.load(f))
         # Add pymiecoated instances back in
         spam = getattr(self, file_name)
-        spam.opt.mie = pym.Mie(cache_size=spam.opt._mie_cache_size)
-        spam.opt.miecoat = pym.Mie(cache_size=spam.opt._mie_cache_size)
+        # TODO: are the Mie instances necessary anymore? I think we can just get rid of them and leave as None
+        if spam._mu_interp:
+            for eggs in spam.mu_dist_objs:
+                ham = getattr(spam, eggs)
+                ham.opt.mie = pym.Mie(cache_size=ham.opt._mie_cache_size)
+                ham.opt.miecoat = pym.Mie(cache_size=ham.opt._mie_cache_size)
+        else:
+            spam.opt.mie = pym.Mie(cache_size=spam.opt._mie_cache_size)
+            spam.opt.miecoat = pym.Mie(cache_size=spam.opt._mie_cache_size)
 
-    def pop_opt(self, name, wl, ovr=False, **kwargs):
+    def _interp_ext_mu_rh_cnconc_2dinterp(self, mu_array, rh_array, data):
+        f = interp2d(mu_array, rh_array, data.transpose(), fill_value=np.NaN)
+        vf = np.vectorize(f)
+        self.mu_interp.mu_ext_cn = lambda mu, RH, CNconc: vf(mu, RH) * CNconc
+
+    def _interp_ext_mu_rh_cnconc_bivariatespline(self, mu_array, rh_array, data):
+        f = RectBivariateSpline(mu_array, rh_array, data)
+        self.mu_interp.mu_ext_cn = lambda mu, RH, CNconc: f.ev(mu, RH) * CNconc
+
+    def pop_opt(self, name, wl, ovr=False, nmu=100, **kwargs):
         """A static aerosol population type is defined, with extinction cross-section as a function of RH.
         Requires size distribution, kappa, and index of refraction to define.
 
@@ -3106,38 +3130,116 @@ class OptAnalysis(BaseAnalysis):
             eggs.kappa = self.kappa
             # Create new CNdist object that generates a new parameterized aerosol population
             kwargs.update(gen_dist=True)
-            CNdist(eggs, obj_setpt=self, **kwargs)
-            # Create new optical instance that holds extinction cross-section for each RH value
-            #   Calculated by ext_recon() as # conc of 1 in this dist allows for scaling by # conc to get b_ext
-            spam = getattr(self, full_name)
-            Optical(eggs, CNdist=spam, name_ovr='opt', var={'RH':rh_array}, obj_setpt=spam)
-            # Set default variables
-            self._cndef = spam
-            # self._optdef = spam.opt
-            # Run an extinction reconstruction that gives the extinction cross-section for the population
-            varname = 'ExtCS_wet'
-            spam.opt.ext_recon_mie(varname=varname,
-                                   wl=wl,
-                                   ind_mix=True,
-                                   ret_ext=True,
-                                   gf=True, save_gf=True,
-                                   set_dist=True
-                                   )
-            # Dry CNconc for vol or mass conc of 1
-            spam.opt._normVol2CNconc = 1.0/(spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
-            if hasattr(spam.data, 'density'):
-                spam.opt._normMass2CNconc = (1.0/spam.data.density.d[0])/(spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
-            # Setup Number Conc and RH interpolation method self.ext(RH, CNconc)
-            spam.opt._interp_ext_rh_cnconc(rh_array=rh_array, varname=varname)
-            # Setup Volume Conc and RH interpolation method self.ext(RH, CNconc)
-            spam.opt._interp_ext_rh_volconc(rh_array=rh_array, varname=varname,
-                                            volconc_div=spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
-            # Setup Volume Conc and RH interpolation method self.ext(RH, CNconc)
-            spam.opt._interp_ext_rh_massconc(rh_array=rh_array, varname=varname,
-                                             volconc_div=spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
-            # Pickle the pop_opt object
-            if self._pop_opt_dir is not None:
-                self._pop_opt_save(spam)
+            # -- HACK: make CNdist with different median diameters to add this dimension to lookup object --
+            #   Definitely better ways of doing this, but this is the easiest since creating this object is done offline
+            # Use nmu for number of median diameters to space lognormally between mu_low and mu_high if mu is list
+            if isinstance(kwargs['num_parm'][0], list):
+                assert len(kwargs['num_parm'][0]) == 2
+                mu_low = kwargs['num_parm'][0][0]
+                mu_high = kwargs['num_parm'][0][1]
+                setattr(self, 'mu_interp', BlankObject(name=full_name))
+                mu_dist = np.logspace(np.log10(mu_low), np.log10(mu_high), nmu)
+                setattr(self.mu_interp, 'mu_dist', mu_dist)
+                setattr(self.mu_interp, 'mu_dist_objs', [])
+                setattr(self.mu_interp, '_num_vol_ratio', [])
+
+                # Create ext lookup object for each mu
+                for mu in mu_dist:
+                    num_parm = np.array([mu, kwargs['num_parm'][1], kwargs['num_parm'][2]])
+                    kw = kwargs.copy()
+                    mu_name = 'mu{}'.format(mu).replace('.','p')
+                    self.mu_interp.mu_dist_objs.append(mu_name)
+                    kw.update(num_parm=num_parm, name_ovr=mu_name)
+                    CNdist(eggs, obj_setpt=self.mu_interp, **kw)
+                    # Create new optical instance that holds extinction cross-section for each RH value
+                    #   Calculated by ext_recon() as # conc of 1 in this dist allows for scaling by # conc to get b_ext
+                    spam = getattr(self.mu_interp, mu_name)
+                    Optical(eggs, CNdist=spam, name_ovr='opt', var={'RH':rh_array}, obj_setpt=spam)
+
+                    # Run an extinction reconstruction that gives the extinction cross-section for the population
+                    varname = 'ExtCS_wet'
+                    spam.opt.ext_recon_mie(varname=varname,
+                                           wl=wl,
+                                           ind_mix=True,
+                                           ret_ext=True,
+                                           gf=True, save_gf=True,
+                                           set_dist=True
+                                           )
+                    # Dry CNconc for vol or mass conc of 1
+                    spam.opt._normVol2CNconc = 1.0/(spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+                    if hasattr(spam.data, 'density'):
+                        spam.opt._normMass2CNconc = (1.0/spam.data.density.d[0])/(spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+                    # Setup Number Conc and RH interpolation method self.ext(RH, CNconc)
+                    spam.opt._interp_ext_rh_cnconc(rh_array=rh_array, varname=varname)
+                    # Setup Volume Conc and RH interpolation method self.ext(RH, CNconc)
+                    spam.opt._interp_ext_rh_volconc(rh_array=rh_array, varname=varname,
+                                                    volconc_div=spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+                    # Setup Volume Conc and RH interpolation method self.ext(RH, CNconc)
+                    spam.opt._interp_ext_rh_massconc(rh_array=rh_array, varname=varname,
+                                                     volconc_div=spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+
+                    # Save a numconc to volconc ratio attribute
+                    spam._num_vol_ratio = spam.data.CNconc.d[0] / spam.data.Volconc.d[0]
+                    self.mu_interp._num_vol_ratio.append(spam._num_vol_ratio)
+
+                # Create numconc to volconc ratio interpolation method and density
+                self.mu_interp._num_vol_ratio = np.array(self.mu_interp._num_vol_ratio)
+                self.mu_interp.num_vol_ratio = interp1d(self.mu_interp.mu_dist, self.mu_interp._num_vol_ratio,
+                                                        bounds_error=False,
+                                                        fill_value=(self.mu_interp._num_vol_ratio[0],
+                                                                    self.mu_interp._num_vol_ratio[-1]))
+                self.mu_interp._density = spam.data.density.d[0]
+
+                # Map distribution median diameter dimension onto extinction lookup
+                data = np.zeros((self.mu_interp.mu_dist.size, rh_array.size))
+                for mi in range(data.shape[0]):
+                    data[mi] = getattr(self.mu_interp, self.mu_interp.mu_dist_objs[mi]).opt.ext_cn(rh_array, 1.)
+                self._interp_ext_mu_rh_cnconc_bivariatespline(self.mu_interp.mu_dist, rh_array, data)
+
+                # Pickle the pop_opt object
+                if self._pop_opt_dir is not None:
+                    self._pop_opt_save(self.mu_interp, mu_interp=True)
+
+            # Otherwise, standard single median diameter table
+            else:
+                CNdist(eggs, obj_setpt=self, **kwargs)
+                # Create new optical instance that holds extinction cross-section for each RH value
+                #   Calculated by ext_recon() as # conc of 1 in this dist allows for scaling by # conc to get b_ext
+                spam = getattr(self, full_name)
+                Optical(eggs, CNdist=spam, name_ovr='opt', var={'RH':rh_array}, obj_setpt=spam)
+
+                # Set default variables
+                self._cndef = spam
+                # self._optdef = spam.opt
+                # Run an extinction reconstruction that gives the extinction cross-section for the population
+                varname = 'ExtCS_wet'
+                spam.opt.ext_recon_mie(varname=varname,
+                                       wl=wl,
+                                       ind_mix=True,
+                                       ret_ext=True,
+                                       gf=True, save_gf=True,
+                                       set_dist=True
+                                       )
+                # Dry CNconc for vol or mass conc of 1
+                spam.opt._normVol2CNconc = 1.0/(spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+                if hasattr(spam.data, 'density'):
+                    spam.opt._normMass2CNconc = (1.0/spam.data.density.d[0])/(spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+                # Setup Number Conc and RH interpolation method self.ext(RH, CNconc)
+                spam.opt._interp_ext_rh_cnconc(rh_array=rh_array, varname=varname)
+                # Setup Volume Conc and RH interpolation method self.ext(RH, CNconc)
+                spam.opt._interp_ext_rh_volconc(rh_array=rh_array, varname=varname,
+                                                volconc_div=spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+                # Setup Volume Conc and RH interpolation method self.ext(RH, CNconc)
+                spam.opt._interp_ext_rh_massconc(rh_array=rh_array, varname=varname,
+                                                 volconc_div=spam.data.Volconc.d[0]/spam.data.CNconc.d[0])
+
+                # Save a numconc to volconc ratio attribute
+                spam._num_vol_ratio = spam.data.CNconc.d[0] / spam.data.Volconc.d[0]
+                spam._density = spam.data.density.d[0]
+
+                # Pickle the pop_opt object
+                if self._pop_opt_dir is not None:
+                    self._pop_opt_save(spam)
 
     def _mk_cndef(self):
         """Creates a dummy CNdist instance.
@@ -3331,9 +3433,25 @@ class ModelAnalysis(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    _pop_type_to_model_var = dict(
+        RAMS_salt_film='salt_film',
+        RAMS_salt_jet='salt_jet',
+        RAMS_salt_spume='salt_spume',
+        RAMS_dust1='dust1',
+        RAMS_dust2='dust2',
+        RAMS_ccn='ccn',
+        RAMS_regen_aero1='regen_aero1',
+        RAMS_regen_aero2='regen_aero2',
+
+        WRF_SEAS_1='SEAS_1',
+        WRF_SEAS_2='SEAS_2',
+        WRF_SEAS_3='SEAS_3',
+        WRF_SEAS_4='SEAS_4',
+    )
+
     @abc.abstractmethod
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
-                 pop_types=None, pop_type_to_model_var=None, process_all_files=True, plotting=False,
+                 pop_types=None, process_all_files=True, plotting=False,
                  separate_pop_types=False):
         self._wl = wl
         # Directory paths
@@ -3341,6 +3459,7 @@ class ModelAnalysis(object):
         self._output_dir = output_dir
         self._pop_opt_dir = pop_opt_dir
         self._dust_db_dir = dust_db_dir
+        self._separate_pop_types = separate_pop_types
         # Setup OptAnalysis instance
         self._analysis = OptAnalysis(pop_opt_dir=pop_opt_dir)
         if pop_types is not None:
@@ -3348,8 +3467,6 @@ class ModelAnalysis(object):
             self._pop_names = ['{}_{}'.format(spam, int(self._wl)) for spam in self._pop_types]
             self._pop_type_to_pop_name = {spam: '{}_{}'.format(spam, int(self._wl)) for spam in self._pop_types}
             self._load_pop_types(pop_opt_dir, self._pop_names)
-        if pop_type_to_model_var is not None:
-            self._pop_type_to_model_var = pop_type_to_model_var
         # Load Yang dust database methods
         # TODO:
         # Get all model files in directory
@@ -3364,12 +3481,14 @@ class ModelAnalysis(object):
                 if not fn.startswith('.'):
                     # Cheap hack workaround to separate population type analysis to get around memory limitations
                     if separate_pop_types:
+                        total_vals = []
                         for pt in pop_types:
                             self._pop_types = [pt]
                             self._pop_names = ['{}_{}'.format(pt, int(self._wl))]
-                            self._process_model_output(fn, plotting=plotting, name_append='-{}'.format(pt))
+                            pop_vals = self._process_model_output(fn, plotting=plotting, name_append='-{}'.format(pt))
+                            total_vals = pop_vals
                     else:
-                        self._process_model_output(fn, plotting=plotting)
+                        throwaway = self._process_model_output(fn, plotting=plotting)
 
     def _load_pop_types(self, file_path, file_names):
         for file_name in file_names:
@@ -3384,7 +3503,7 @@ class ModelAnalysis(object):
         return
 
     @abc.abstractmethod
-    def _load_pop_conc(self):
+    def _load_pop_data(self):
         return
 
     @abc.abstractmethod
@@ -3430,35 +3549,14 @@ class RAMS(ModelAnalysis):
     """An optical analysis class for standard RAMS output and aerosol population types.
 
     Assumes RAMS data is passed as an HDF5 group.
-
-    # TODO: uses number con vars for now, but should switch to mass vars once density has been established I think
-
     """
-
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
-                 default_pop_types=None, pop_type_to_model_var=None, model_var_conc_type=None,
+                 default_pop_types=None,
                  process_all_files=True, plotting=False, separate_pop_types=False):
         # Load WRF-CHEM population type objects
-        if default_pop_types is None:
-            default_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
-        if pop_type_to_model_var is None:
-            pop_type_to_model_var = dict(
-                # RAMS_salt_film='salt_film_concen',
-                # RAMS_salt_jet='salt_jet_concen',
-                # RAMS_salt_spume='salt_spume_concen'
-
-                RAMS_salt_film='salt_film_mass',
-                RAMS_salt_jet='salt_jet_mass',
-                RAMS_salt_spume='salt_spume_mass'
-            )
-        if model_var_conc_type is None:
-            self._model_var_conc_type = 'mass'  # 'number' 'mass'
-        else:
-            self._model_var_conc_type = model_var_conc_type
         super(RAMS, self).__init__(wl,
                                    model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                                    pop_types=default_pop_types,
-                                   pop_type_to_model_var=pop_type_to_model_var,
                                    process_all_files=process_all_files,
                                    plotting=plotting,
                                    separate_pop_types=separate_pop_types
@@ -3473,14 +3571,23 @@ class RAMS(ModelAnalysis):
         dz in Mm
         """
         # Dimensions: t, z, y, x
-        self._shape = self._f['ccn_concen_cm3'].shape
+        self._shape = self._f['relhum_frac'].shape
         t,z,y,x = self._shape
         self._shape_horiz = (t,y,x)
         # Nominal z grid centers
+        # Old grid
+        # loc = np.array([
+        #     36, 114, 198, 289, 387, 494, 608, 732, 865, 1010, 1165, 1334, 1515, 1712, 1924, 2153, 2400, 2667, 2955,
+        #     3267, 3603, 3966, 4359, 4782, 5240, 5734, 6268, 6845, 7467, 8140, 8867, 9621, 10371, 11121
+        # ])  # NOTE: 34 grid centers listed here
         loc = np.array([
-            36, 114, 198, 289, 387, 494, 608, 732, 865, 1010, 1165, 1334, 1515, 1712, 1924, 2153, 2400, 2667, 2955,
-            3267, 3603, 3966, 4359, 4782, 5240, 5734, 6268, 6845, 7467, 8140, 8867, 9621, 10371, 11121
-        ])  # NOTE: 34 grid centers listed here
+            -36, 36, 114, 198, 289, 387, 494, 608, 732, 865,
+            1010, 1165, 1334, 1515, 1712, 1924, 2153, 2400, 2667, 2955,
+            3267, 3603, 3966, 4359, 4782, 5240, 5734, 6268, 6845, 7467,
+            8140, 8867, 9621, 10371, 11121, 11871, 12621, 13371, 14121, 14871,
+            15621, 16371, 17121, 17871, 18621, 19371, 20121, 20871, 21621, 22371,
+            23121
+        ])  # NOTE: 50 grid centers listed here
         # Top of model domain
         ztop = 21996.
         # Nominal grid edges
@@ -3496,23 +3603,38 @@ class RAMS(ModelAnalysis):
         self._data.lon = self._f['lon'].value
         self._data.dz = dz_array / 1e6
 
-    def _load_pop_conc(self):
-        # Number concentration variable
-        if self._model_var_conc_type == 'number':
-            for pop_type in self._pop_types:
-                pop_data = self._f[self._pop_type_to_model_var[pop_type]].value
-                setattr(self._data, pop_type, pop_data)
-        # Mass concentration variable
-        elif self._model_var_conc_type == 'mass':
-            for pop_type in self._pop_types:
-                pop_data = self._f[self._pop_type_to_model_var[pop_type]].value
-                pop_obj = getattr(self._analysis, self._pop_type_to_pop_name[pop_type])
-                pop_data = pop_data / pop_obj.data.density.d[0]
-                eggs = pop_obj.data.CNconc.d[0] / pop_obj.data.Volconc.d[0]
-                pop_data = pop_data * eggs
-                setattr(self._data, pop_type, pop_data)
-        else:
-            raise Exception
+    def _load_pop_data(self):
+        # Load median diameter variable if needed
+        for pop_type in self._pop_types:
+            pop_data = self._f[self._pop_type_to_model_var[pop_type]+'_medrad'].value
+            # Convert um to nm
+            pop_data = pop_data * 1000.
+            setattr(self._data, pop_type+'_medrad', pop_data)
+
+        # # Number concentration variable
+        # if self._model_var_conc_type == 'number':
+        #     for pop_type in self._pop_types:
+        #         pop_data = self._f[self._pop_type_to_model_var[pop_type]+'_concen'].value
+        #         setattr(self._data, pop_type, pop_data)
+
+        # Mass concentration variable to number concentration
+        for pop_type in self._pop_types:
+            pop_data = self._f[self._pop_type_to_model_var[pop_type]+'_mass'].value
+            pop_obj = getattr(self._analysis, self._pop_type_to_pop_name[pop_type])
+
+            # Now need to interpolate medrad number to volume ratio for all data points in pop_data
+            medrad = getattr(self._data, pop_type+'_medrad')
+            assert np.shape(medrad) == np.shape(pop_data)
+
+            pop_data = pop_data / pop_obj._density
+            if hasattr(pop_obj, 'num_vol_ratio'):
+                eggs = pop_obj.num_vol_ratio(medrad)
+            else:
+                eggs = pop_obj._num_vol_ratio
+            # eggs = pop_obj.data.CNconc.d[0] / pop_obj.data.Volconc.d[0]
+            pop_data = pop_data * eggs
+            pop_data[medrad == 0.] = 0.
+            setattr(self._data, pop_type, pop_data)
 
     def _load_rh(self):
         rh_data = self._f['relhum_frac'].value
@@ -3529,11 +3651,22 @@ class RAMS(ModelAnalysis):
             setattr(self.ext, pop_type, BlankObject())
             # Extinction interpolator  # NOTE: Number concentration currently
             pop_obj = getattr(self._analysis, self._pop_type_to_pop_name[pop_type])
-            ext_func = pop_obj.opt.ext_cn
-            # Dry aerosol extinction coeff (Mm^-1)
-            setattr(getattr(self.ext, pop_type), 'dry', ext_func(0., getattr(self._data, pop_type)))
-            # Humidified aerosol extinction coeff (Mm^-1)
-            setattr(getattr(self.ext, pop_type), 'wet', ext_func(self._data.RH, getattr(self._data, pop_type)))
+            if pop_obj._mu_interp:
+                ext_func = pop_obj.mu_ext_cn
+                # Dry aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'dry', ext_func(getattr(self._data, pop_type+'_medrad'),
+                                                                     0.,
+                                                                     getattr(self._data, pop_type)))
+                # Humidified aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'wet', ext_func(getattr(self._data, pop_type+'_medrad'),
+                                                                     self._data.RH,
+                                                                     getattr(self._data, pop_type)))
+            else:
+                ext_func = pop_obj.opt.ext_cn
+                # Dry aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'dry', ext_func(0., getattr(self._data, pop_type)))
+                # Humidified aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'wet', ext_func(self._data.RH, getattr(self._data, pop_type)))
 
     def _AOD_calc(self):
         # Create data object to hold AOD data
@@ -3582,18 +3715,19 @@ class RAMS(ModelAnalysis):
             ex_wet_group.create_dataset(pop_type, data=np.squeeze(getattr(self.ext, pop_type).wet), dtype=dtype)
         # For total of all aerosol population types save the dry and wet ext and AOD values
         pop_type = 'Total'
-        AOD_dry_group.create_dataset(pop_type,
-            data=np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0)),
-            dtype=dtype)
-        AOD_wet_group.create_dataset(pop_type,
-            data=np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0)),
-            dtype=dtype)
-        ex_dry_group.create_dataset(pop_type,
-            data=np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0)),
-            dtype=dtype)
-        ex_wet_group.create_dataset(pop_type,
-            data=np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0)),
-            dtype=dtype)
+        if not self._separate_pop_types:
+            AOD_dry_group.create_dataset(pop_type,
+                data=np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0)),
+                dtype=dtype)
+            AOD_wet_group.create_dataset(pop_type,
+                data=np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0)),
+                dtype=dtype)
+            ex_dry_group.create_dataset(pop_type,
+                data=np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0)),
+                dtype=dtype)
+            ex_wet_group.create_dataset(pop_type,
+                data=np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0)),
+                dtype=dtype)
 
         # --- netCDF4 save ---
         # Create writable netCDF4 file
@@ -3623,14 +3757,21 @@ class RAMS(ModelAnalysis):
             var[:] = np.squeeze(getattr(self.ext, pop_type).wet)
         # For total of all aerosol population types save the dry and wet ext and AOD values
         pop_type = 'Total'
-        var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
-        var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0))
-        var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
-        var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0))
-        var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
-        var[:] = np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0))
-        var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
-        var[:] = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
+        if not self._separate_pop_types:
+            pop_type = 'Total'
+            var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
+            var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0))
+            var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
+            var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0))
+            var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
+            var[:] = np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0))
+            var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
+            var[:] = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
+
+        # If separate pop types, return variables for summing and saving total
+        else:
+            a = [AOD_dry_group, AOD_wet_group, ex_dry_group, ex_wet_group]
+            return a
 
     def _process_model_output(self, file_name, plotting=False, name_append=None):
         # Load the HDF5 file
@@ -3638,7 +3779,7 @@ class RAMS(ModelAnalysis):
         # Load external given model parameters
         self._precalc_grid_params()
         # Load aerosol population concentration data
-        self._load_pop_conc()
+        self._load_pop_data()
         # Load RH % data
         self._load_rh()
         # Calculate extinction variables for each grid box
@@ -3646,7 +3787,10 @@ class RAMS(ModelAnalysis):
         # Reconstruct AOD for each grid column
         self._AOD_calc()
         # Save output to file
-        self._save_output(file_name, name_append)
+        spam = self._save_output(file_name, name_append)
         # Save example plot to file
         if plotting:
             self._plot.pop_AOD_method1(self._output_dir, file_name)
+            # self._plot.pop_AOD_example(self._output_dir, file_name)
+
+        return spam

@@ -445,19 +445,18 @@ class Plotting(object):
 
         return m
 
-    def pop_AOD_example(self):
+    def pop_AOD_example(self, output_dir, file_name):
         pl.figure(figsize=(10, 12))
         pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
         nrow = 4
         ncol = 3
         pn = 0
 
-        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
-        # names = ['RAMS_salt_film_alt', 'RAMS_salt_jet_alt', 'RAMS_salt_spume_alt']
+        names = ['RAMS_salt_jet']
         wl_ad = '_550'
-        aod_log = [False, False, True, False]
+        aod_log = [False, False, False, False]
         aod_min = [None, None, None, None]
-        aod_max = [0.01, 0.10, 1e-5, 0.10]
+        aod_max = [0.10, 0.10, 1.0, 1.0]
         xlim = [1e1, 3e5]
 
         for i in range(len(names)):
@@ -467,14 +466,17 @@ class Plotting(object):
             pn+=1
             ax = pl.subplot(nrow, ncol, pn)
             self.contour_map(obj.dry.AOD,
-                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_label='AOD', ax=ax)
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+                             ax=ax)
             pn+=1
             ax = pl.subplot(nrow, ncol, pn)
             self.contour_map(obj.wet.AOD,
-                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_label='AOD', ax=ax)
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+                             ax=ax)
             pn+=1
-            ax = pl.subplot(nrow, ncol, pn)
-            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
+            if not obj2._mu_interp:
+                ax = pl.subplot(nrow, ncol, pn)
+                self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
 
         i = 3
         pn+=1
@@ -488,7 +490,9 @@ class Plotting(object):
         self.contour_map(var,
                          cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_label='AOD', ax=ax)
 
-        pl.show()
+        # pl.show()
+        pl.savefig(os.path.join(output_dir, file_name + '-example.png'))
+        pl.close()
 
     def pop_AOD_method1(self, output_dir, file_name):
         # - First plot with salt and dust -
@@ -527,57 +531,57 @@ class Plotting(object):
         pl.savefig(os.path.join(output_dir, file_name + '-1.png'))
         pl.close()
 
-        # - Second plot with CCN, regen, and total
-        pl.figure(figsize=(10, 14))
-        pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
-        nrow = 4
-        ncol = 3
-        pn = 0
-
-        names2 = ['RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
-        wl_ad = '_550'
-        aod_log = [False, False, False, False, False]
-        aod_min = [None, None, None, None, None]
-        aod_max = [0.01, 0.10, 0.10, 0.10, 3.0]
-        xlim = [1e1, 3e5]
-
-        for i in range(len(names2)):
-            n = names2[i]
-            obj = getattr(self.parent.AOD, n)
-            obj2 = getattr(self.parent._analysis, n + wl_ad)
-            pn += 1
-            ax = pl.subplot(nrow, ncol, pn)
-            self.contour_map(obj.dry.AOD,
-                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-                             ax=ax)
-            pn += 1
-            ax = pl.subplot(nrow, ncol, pn)
-            self.contour_map(obj.wet.AOD,
-                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-                             ax=ax)
-            pn += 1
-            ax = pl.subplot(nrow, ncol, pn)
-            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
-
-        names_all = names + names2
-        i = 4
-        pn+=1
-        ax = pl.subplot(nrow, ncol, pn)
-        var = np.nansum([getattr(self.parent.AOD, n).dry.AOD for n in names_all], axis=0)
-        self.contour_map(var,
-                         cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-                         ax=ax)
-        pl.title('Total')
-        pn+=1
-        ax = pl.subplot(nrow, ncol, pn)
-        var = np.nansum([getattr(self.parent.AOD, n).wet.AOD for n in names_all], axis=0)
-        self.contour_map(var,
-                         cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-                         ax=ax)
-
-        # pl.show()
-        pl.savefig(os.path.join(output_dir, file_name + '-2.png'))
-        pl.close()
+        # # - Second plot with CCN, regen, and total
+        # pl.figure(figsize=(10, 14))
+        # pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        # nrow = 4
+        # ncol = 3
+        # pn = 0
+        #
+        # names2 = ['RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
+        # wl_ad = '_550'
+        # aod_log = [False, False, False, False, False]
+        # aod_min = [None, None, None, None, None]
+        # aod_max = [0.01, 0.10, 0.10, 0.10, 3.0]
+        # xlim = [1e1, 3e5]
+        #
+        # for i in range(len(names2)):
+        #     n = names2[i]
+        #     obj = getattr(self.parent.AOD, n)
+        #     obj2 = getattr(self.parent._analysis, n + wl_ad)
+        #     pn += 1
+        #     ax = pl.subplot(nrow, ncol, pn)
+        #     self.contour_map(obj.dry.AOD,
+        #                      cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+        #                      ax=ax)
+        #     pn += 1
+        #     ax = pl.subplot(nrow, ncol, pn)
+        #     self.contour_map(obj.wet.AOD,
+        #                      cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+        #                      ax=ax)
+        #     pn += 1
+        #     ax = pl.subplot(nrow, ncol, pn)
+        #     self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
+        #
+        # names_all = names + names2
+        # i = 4
+        # pn+=1
+        # ax = pl.subplot(nrow, ncol, pn)
+        # var = np.nansum([getattr(self.parent.AOD, n).dry.AOD for n in names_all], axis=0)
+        # self.contour_map(var,
+        #                  cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+        #                  ax=ax)
+        # pl.title('Total')
+        # pn+=1
+        # ax = pl.subplot(nrow, ncol, pn)
+        # var = np.nansum([getattr(self.parent.AOD, n).wet.AOD for n in names_all], axis=0)
+        # self.contour_map(var,
+        #                  cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+        #                  ax=ax)
+        #
+        # # pl.show()
+        # pl.savefig(os.path.join(output_dir, file_name + '-2.png'))
+        # pl.close()
 
     def pop_fRH(self):
         pl.figure(figsize=(8, 6))

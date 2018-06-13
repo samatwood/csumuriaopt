@@ -61,7 +61,7 @@ def mie_props(coeffs,y):
     asy = 4/y2*(asy1+asy2).sum()/qsca
     qratio = qb/qsca
 
-    return {"qext":qext, "qsca":qsca, "qabs":qabs, "qb":qb, "asy":asy,
+    return {"qext":qext, "qsca":qsca, "qabs":qabs, "qb":qb, "asy":asy, 
         "qratio":qratio}
 
 
@@ -88,9 +88,10 @@ def mie_pt(u,nmax):
     t[0] = u
     t[1] = 6*u**2 - 3
 
-    nn = arange(2,nmax,dtype=int)
+    nn = arange(2,nmax,dtype=float)
     for n in nn:
-        p[n] = (2.0*n+1.0)/n*p[n-1]*u - (n+1.0)/n*p[n-2]
+        n_i = int(n)
+        p[n_i] = (2*n+1)/n*p[n_i-1]*u - (n+1)/n*p[n_i-2]
 
     t[2:] = (nn+1)*u*p[2:] - (nn+2)*p[1:-1]
 

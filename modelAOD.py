@@ -24,7 +24,7 @@ pop_opt_dir=os.path.join(base_dir,'model_pop')
 dust_db_dir=os.path.join(base_dir,'dust_db')
 
 # - Run parameters -
-recompute_model_aerosol_types = False
+recompute_model_aerosol_types = True
 run_RAMS = True
 run_WRF = False
 run_Both = False
@@ -41,39 +41,23 @@ wl = 550.
 RAMS_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
                   'RAMS_dust1', 'RAMS_dust2',
                   'RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
-RAMS_pop_type_to_model_var = dict(
-    RAMS_salt_film='salt_film_mass',
-    RAMS_salt_jet='salt_jet_mass',
-    RAMS_salt_spume='salt_spume_mass',
-    RAMS_dust1='dust1_mass',
-    RAMS_dust2='dust2_mass',
-    RAMS_ccn='ccn_mass',
-    RAMS_regen_aero1='regen_aero1_mass',
-    RAMS_regen_aero2='regen_aero2_mass'
-)
+# RAMS_pop_types = ['RAMS_salt_jet']
 
 # RAMS_pop_types = ['RAMS_salt_film_alt', 'RAMS_salt_jet_alt', 'RAMS_salt_spume_alt']
-# RAMS_pop_type_to_model_var = dict(
-#     RAMS_salt_film_alt='salt_film_mass',
-#     RAMS_salt_jet_alt='salt_jet_mass',
-#     RAMS_salt_spume_alt='salt_spume_mass'
-# )
 
 # All_salt_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
 #                       'WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
-# All_salt_pop_type_to_model_var = dict(
-#     RAMS_salt_film='salt_film_mass',
-#     RAMS_salt_jet='salt_jet_mass',
-#     RAMS_salt_spume='salt_spume_mass',
-#
-#     WRF_SEAS_1='SEAS_1',
-#     WRF_SEAS_2='SEAS_2',
-#     WRF_SEAS_3='SEAS_3',
-#     WRF_SEAS_4='SEAS_4',
-# )
+All_salt_pop_type_to_model_var = dict(
+    RAMS_salt_film='salt_film_mass',
+    RAMS_salt_jet='salt_jet_mass',
+    RAMS_salt_spume='salt_spume_mass',
 
+    WRF_SEAS_1='SEAS_1',
+    WRF_SEAS_2='SEAS_2',
+    WRF_SEAS_3='SEAS_3',
+    WRF_SEAS_4='SEAS_4',
+)
 
-RAMS_model_var_conc_type = 'mass'
 
 
 # ------ Model Aerosol Population Types ------
@@ -106,8 +90,6 @@ if run_RAMS:
                     pop_opt_dir=pop_opt_dir,
                     dust_db_dir=dust_db_dir,
                     default_pop_types = RAMS_pop_types,
-                    pop_type_to_model_var = RAMS_pop_type_to_model_var,
-                    model_var_conc_type=RAMS_model_var_conc_type,
                     process_all_files=True,
                     plotting=plot_output,
                     separate_pop_types=separate_pop_types
@@ -129,8 +111,6 @@ if run_Both:
                     pop_opt_dir=pop_opt_dir,
                     dust_db_dir=dust_db_dir,
                     default_pop_types = All_salt_pop_types,
-                    pop_type_to_model_var = All_salt_pop_type_to_model_var,
-                    model_var_conc_type=RAMS_model_var_conc_type,
                     process_all_files=True,
                     plotting=plot_output,
                     separate_pop_types=separate_pop_types
@@ -144,4 +124,5 @@ print(end-start)
 # Plot methods
 if plot_output:
     # spam._plot.pop_AOD_example()
-    spam._plot.pop_fRH()
+    # spam._plot.pop_fRH()
+    pass
