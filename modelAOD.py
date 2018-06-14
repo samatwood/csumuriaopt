@@ -17,6 +17,7 @@ start = dt.datetime.now()
 
 # - Directories -
 base_dir = os.path.abspath(os.path.join(os.path.dirname(ada.__file__), os.pardir))
+base_dir = os.path.abspath('/Volumes/Robo/sam/Spekkio/projects/csumuriaopt')
 wrf_file_dir=os.path.join(base_dir,'WRF_model_files')
 rams_file_dir=os.path.join(base_dir,'RAMS_model_files')
 output_dir=os.path.join(base_dir,'AOD_output')
@@ -24,7 +25,7 @@ pop_opt_dir=os.path.join(base_dir,'model_pop')
 dust_db_dir=os.path.join(base_dir,'dust_db')
 
 # - Run parameters -
-recompute_model_aerosol_types = True
+recompute_model_aerosol_types = False
 run_RAMS = True
 run_WRF = False
 run_Both = False
