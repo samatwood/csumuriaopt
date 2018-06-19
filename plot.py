@@ -299,7 +299,7 @@ class Plotting(object):
             pl.title(title)
 
     def simple_dist_plot(self, cnobj, ind, xlim=None, ls='-', c='r', label=None,
-                         plot_voldist=True, dmy=False, ax=None):
+                         plot_voldist=True, dmy=False, ax=None, title=None):
         # Plot setup
         if ax is None:
             fig = pl.figure(figsize=(8 ,6))
@@ -316,19 +316,19 @@ class Plotting(object):
         if plot_voldist:
             pl.step(x_, yp_, color='r', where='post', linestyle=ls, lw=1, label='Number')
             pl.step(x_, yp2_, color='b', where='post', linestyle=ls, lw=1, label='Volume')
-            pl.title(cnobj.__name__)
+            # pl.title(cnobj.__name__)
             pl.legend(loc=0)
             if xlim is not None:
                 pl.xlim(xlim)
             # Format plot
             self._plot_format(ax, x=cnobj.data.BinMid, xvar=True, ylabel='Normalized ${dVar/dlogD_p}$',
-                              xlog=True, xgridmin=None)
+                              xlog=True, xgridmin=None, title=title)
         else:
             pl.step(x_, yp_, color=c, where='post', linestyle=ls, lw=1, label=label)
             # Format plot
             if dmy == 0:
                 self._plot_format(ax, x=cnobj.data.BinMid, xvar=True, ylabel='Normalized ${dVar/dlogD_p}$',
-                              xlog=True, xgridmin=None)
+                              xlog=True, xgridmin=None, title=title)
 
         # pl.show()
 
@@ -531,57 +531,57 @@ class Plotting(object):
         pl.savefig(os.path.join(output_dir, file_name + '-1.png'))
         pl.close()
 
-        # # - Second plot with CCN, regen, and total
-        # pl.figure(figsize=(10, 14))
-        # pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
-        # nrow = 4
-        # ncol = 3
-        # pn = 0
-        #
-        # names2 = ['RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
-        # wl_ad = '_550'
-        # aod_log = [False, False, False, False, False]
-        # aod_min = [None, None, None, None, None]
-        # aod_max = [0.01, 0.10, 0.10, 0.10, 3.0]
-        # xlim = [1e1, 3e5]
-        #
-        # for i in range(len(names2)):
-        #     n = names2[i]
-        #     obj = getattr(self.parent.AOD, n)
-        #     obj2 = getattr(self.parent._analysis, n + wl_ad)
-        #     pn += 1
-        #     ax = pl.subplot(nrow, ncol, pn)
-        #     self.contour_map(obj.dry.AOD,
-        #                      cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-        #                      ax=ax)
-        #     pn += 1
-        #     ax = pl.subplot(nrow, ncol, pn)
-        #     self.contour_map(obj.wet.AOD,
-        #                      cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-        #                      ax=ax)
-        #     pn += 1
-        #     ax = pl.subplot(nrow, ncol, pn)
-        #     self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
-        #
-        # names_all = names + names2
-        # i = 4
-        # pn+=1
-        # ax = pl.subplot(nrow, ncol, pn)
-        # var = np.nansum([getattr(self.parent.AOD, n).dry.AOD for n in names_all], axis=0)
-        # self.contour_map(var,
-        #                  cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-        #                  ax=ax)
-        # pl.title('Total')
-        # pn+=1
-        # ax = pl.subplot(nrow, ncol, pn)
-        # var = np.nansum([getattr(self.parent.AOD, n).wet.AOD for n in names_all], axis=0)
-        # self.contour_map(var,
-        #                  cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
-        #                  ax=ax)
-        #
-        # # pl.show()
-        # pl.savefig(os.path.join(output_dir, file_name + '-2.png'))
-        # pl.close()
+        # - Second plot with CCN, regen, and total
+        pl.figure(figsize=(10, 14))
+        pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        nrow = 4
+        ncol = 3
+        pn = 0
+
+        names2 = ['RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
+        wl_ad = '_550'
+        aod_log = [False, False, False, False, False]
+        aod_min = [None, None, None, None, None]
+        aod_max = [0.01, 0.10, 0.10, 0.10, 3.0]
+        xlim = [1e1, 3e5]
+
+        for i in range(len(names2)):
+            n = names2[i]
+            obj = getattr(self.parent.AOD, n)
+            obj2 = getattr(self.parent._analysis, n + wl_ad)
+            pn += 1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.dry.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+                             ax=ax)
+            pn += 1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.wet.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+                             ax=ax)
+            pn += 1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim)
+
+        names_all = names + names2
+        i = 4
+        pn+=1
+        ax = pl.subplot(nrow, ncol, pn)
+        var = np.nansum([getattr(self.parent.AOD, n).dry.AOD for n in names_all], axis=0)
+        self.contour_map(var,
+                         cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+                         ax=ax)
+        pl.title('Total')
+        pn+=1
+        ax = pl.subplot(nrow, ncol, pn)
+        var = np.nansum([getattr(self.parent.AOD, n).wet.AOD for n in names_all], axis=0)
+        self.contour_map(var,
+                         cb_log=aod_log[i], cb_min=aod_min[i], cb_max=aod_max[i], cb_extend='max', cb_label='AOD',
+                         ax=ax)
+
+        # pl.show()
+        pl.savefig(os.path.join(output_dir, file_name + '-2.png'))
+        pl.close()
 
     def pop_fRH(self):
         pl.figure(figsize=(8, 6))
@@ -650,3 +650,69 @@ class Plotting(object):
         pl.title('RAMS population types\nNumber Size Distribution - Testing')
         pl.show()
 
+    def pop_plot_only1(self, CNdist, BlankObject, output_dir, file_name):
+        # One plot for each pop type in file - hdf5 files only
+        for pop_type in self.parent._pop_types:
+            pl.figure(figsize=(10, 4))
+            pl.subplots_adjust(bottom=0.15, top=0.85, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+            nrow = 1
+            ncol = 3
+            pn = 0
+
+            dry_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['dry'][pop_type].value])
+            wet_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['wet'][pop_type].value])
+            spam = pop_type + '_{}'.format(int(self.parent._wl))
+            try:
+                eggs = getattr(self.parent._analysis, spam)
+            except:
+                eggs = None
+                obj2 = None
+            if eggs:
+                if eggs._mu_interp:
+                    # HACK: only works in one situation as specified for case specific RAMS runs
+                    ham = getattr(eggs, eggs.mu_dist_objs[0])._p_parms[0]
+                    median_mu = np.median(getattr(self.parent._data, pop_type + '_medrad'))
+                    ham[0] = median_mu
+                    eggs = BlankObject()
+                    eggs.n = 1
+                    obj2 = CNdist(eggs, num_parm=ham, modes=1, CNconc=1., auto_bins=True, nbins=100, gen_dist=True)
+                else:
+                    obj2 = eggs
+
+            def get_max(arr):
+                v = np.nanmax(np.atleast_1d(arr))
+                spam = np.power(10,np.ceil(np.log10(np.nanmax(v))))
+                eggs = v/spam
+                a = np.array([0.1,0.2,0.5,1.0])
+                ham = a[np.where(eggs <= a)[0][0]]
+                return min(spam*ham, 5.0)
+
+            name = pop_type
+            aod_log = False
+            aod_min = None
+            aodd_max = get_max(dry_AOD)
+            aodw_max =get_max(wet_AOD)
+            xlim = [1e1, 3e5]
+
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(dry_AOD,
+                             cb_log=aod_log, cb_min=aod_min, cb_max=aodd_max, cb_extend='max', cb_label='AOD',
+                             ax=ax, title='dry AOD')
+
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(wet_AOD,
+                             cb_log=aod_log, cb_min=aod_min, cb_max=aodw_max, cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Humidified AOD')
+
+            if pop_type != 'Total':
+                pn += 1
+                ax = pl.subplot(nrow, ncol, pn)
+                self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title='Median Diameter: {:.2f} nm'.format(median_mu))
+
+            fn_short = '.'.join(file_name.split('.')[:-1])
+            pl.suptitle(fn_short)
+            # pl.show()
+            pl.savefig(os.path.join(output_dir, fn_short + '-simpleAOD.png'))
+            pl.close()

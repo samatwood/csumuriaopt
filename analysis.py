@@ -3452,7 +3452,7 @@ class ModelAnalysis(object):
     @abc.abstractmethod
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                  pop_types=None, process_all_files=True, plotting=False,
-                 separate_pop_types=False):
+                 separate_pop_types=False, pop_plot_only=False):
         self._wl = wl
         # Directory paths
         self._model_file_dir = model_file_dir
@@ -3471,6 +3471,7 @@ class ModelAnalysis(object):
         # TODO:
         # Get all model files in directory
         self.model_file_names = sorted(os.listdir(model_file_dir))
+        self.out_file_names = sorted(os.listdir(output_dir))
         # Create a data container for needed model output variables
         self._data = BlankObject()
         # Plotting
@@ -3499,6 +3500,12 @@ class ModelAnalysis(object):
                                                       total_only=(AOD_dry, AOD_wet, ext_dry, ext_wet))
                     else:
                         throwaway = self._process_model_output(fn, plotting=plotting)
+        # Only plotting existing files option
+        if pop_plot_only:
+            for fn in self.out_file_names:
+                if not fn.startswith('.'):
+                    if fn.endswith('.h5'):
+                        self._pop_plot_only(fn)
 
     def _load_pop_types(self, file_path, file_names):
         for file_name in file_names:
@@ -3562,14 +3569,16 @@ class RAMS(ModelAnalysis):
     """
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                  default_pop_types=None,
-                 process_all_files=True, plotting=False, separate_pop_types=False):
+                 process_all_files=True, plotting=False, separate_pop_types=False,
+                 pop_plot_only=False):
         # Load WRF-CHEM population type objects
         super(RAMS, self).__init__(wl,
                                    model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                                    pop_types=default_pop_types,
                                    process_all_files=process_all_files,
                                    plotting=plotting,
-                                   separate_pop_types=separate_pop_types
+                                   separate_pop_types=separate_pop_types,
+                                   pop_plot_only=pop_plot_only
                                    )
 
     def _load_model_file(self, file_name):
@@ -3834,3 +3843,18 @@ class RAMS(ModelAnalysis):
             self._plot.pop_AOD_method1(self._output_dir, file_name)
             # self._plot.pop_AOD_example(self._output_dir, file_name)
         return spam
+
+    def _pop_plot_only(self, file_name):
+        # Load the HDF5 file
+        # HACK: cheap hack to get base file name
+        base_comp = file_name.split('-')
+        base_ind = base_comp.index('opt')
+        base_fn = '-'.join(base_comp[:base_ind])+'.h5'
+        self._load_model_file(base_fn)
+        self._precalc_grid_params()
+        self._plot_fn = file_name
+        self._plot_f = h5py.File(os.path.join(self._output_dir, file_name))
+        self._pop_types = [str(spam) for spam in self._plot_f['wl_nm-550']['AOD']['dry'].keys()]
+        if 'Total' not in self._pop_types:
+            self._load_pop_data()
+        self._plot.pop_plot_only1(CNdist, BlankObject, self._output_dir, file_name)

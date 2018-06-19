@@ -29,6 +29,7 @@ run_RAMS = True
 run_WRF = False
 run_Both = False
 plot_output = False
+pop_plot_only = True
 # For memory limited issues
 separate_pop_types = True
 
@@ -82,6 +83,11 @@ if recompute_model_aerosol_types:
 
 # ------ New model optical and aerosol analysis ------
 
+if pop_plot_only:
+    process_all_files = False
+else:
+    process_all_files = True
+
 # RAMS model
 if run_RAMS:
     spam = ada.RAMS(wl=550.,
@@ -90,9 +96,10 @@ if run_RAMS:
                     pop_opt_dir=pop_opt_dir,
                     dust_db_dir=dust_db_dir,
                     default_pop_types = RAMS_pop_types,
-                    process_all_files=True,
+                    process_all_files=process_all_files,
                     plotting=plot_output,
-                    separate_pop_types=separate_pop_types
+                    separate_pop_types=separate_pop_types,
+                    pop_plot_only=pop_plot_only
                     )
 
 # WRF model
@@ -111,9 +118,10 @@ if run_Both:
                     pop_opt_dir=pop_opt_dir,
                     dust_db_dir=dust_db_dir,
                     default_pop_types = All_salt_pop_types,
-                    process_all_files=True,
+                    process_all_files=process_all_files,
                     plotting=plot_output,
-                    separate_pop_types=separate_pop_types
+                    separate_pop_types=separate_pop_types,
+                    pop_plot_only=pop_plot_only
                     )
 
 
