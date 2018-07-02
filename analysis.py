@@ -3452,7 +3452,7 @@ class ModelAnalysis(object):
     @abc.abstractmethod
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                  pop_types=None, process_all_files=True, plotting=False,
-                 separate_pop_types=False, pop_plot_only=False):
+                 separate_pop_types=False, pop_plot_only=False, cap_RH=False):
         self._wl = wl
         # Directory paths
         self._model_file_dir = model_file_dir
@@ -3460,6 +3460,7 @@ class ModelAnalysis(object):
         self._pop_opt_dir = pop_opt_dir
         self._dust_db_dir = dust_db_dir
         self._separate_pop_types = separate_pop_types
+        self._cap_rh = cap_RH
         # Setup OptAnalysis instance
         self._analysis = OptAnalysis(pop_opt_dir=pop_opt_dir)
         if pop_types is not None:
@@ -3570,7 +3571,7 @@ class RAMS(ModelAnalysis):
     def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
                  default_pop_types=None,
                  process_all_files=True, plotting=False, separate_pop_types=False,
-                 pop_plot_only=False):
+                 pop_plot_only=False, cap_RH=False):
         # Load WRF-CHEM population type objects
         super(RAMS, self).__init__(wl,
                                    model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
@@ -3578,7 +3579,8 @@ class RAMS(ModelAnalysis):
                                    process_all_files=process_all_files,
                                    plotting=plotting,
                                    separate_pop_types=separate_pop_types,
-                                   pop_plot_only=pop_plot_only
+                                   pop_plot_only=pop_plot_only,
+                                   cap_RH=cap_RH
                                    )
 
     def _load_model_file(self, file_name):
@@ -3658,7 +3660,10 @@ class RAMS(ModelAnalysis):
     def _load_rh(self):
         rh_data = self._f['relhum_frac'].value
         setattr(self._data, 'RH', rh_data)
-        self._data.RH[self._data.RH > 0.99] = np.NaN
+        if self._cap_rh:
+            self._data.RH[self._data.RH > 0.99] = 0.99
+        else:
+            self._data.RH[self._data.RH > 0.99] = np.NaN
         self._data.RH = self._data.RH * 100.
 
     def _ext_calc(self):

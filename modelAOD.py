@@ -29,7 +29,8 @@ run_RAMS = True
 run_WRF = False
 run_Both = False
 plot_output = False
-pop_plot_only = True
+pop_plot_only = False
+cap_RH = True               # Caps RH values to < 100%
 # For memory limited issues
 separate_pop_types = True
 
@@ -99,7 +100,8 @@ if run_RAMS:
                     process_all_files=process_all_files,
                     plotting=plot_output,
                     separate_pop_types=separate_pop_types,
-                    pop_plot_only=pop_plot_only
+                    pop_plot_only=pop_plot_only,
+                    cap_RH = cap_RH
                     )
 
 # WRF model
