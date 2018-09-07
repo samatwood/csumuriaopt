@@ -583,18 +583,18 @@ class Plotting(object):
         pl.savefig(os.path.join(output_dir, file_name + '-2.png'))
         pl.close()
 
-    def pop_fRH(self):
+    def pop_fRH(self, pop_types, wl=550):
         pl.figure(figsize=(8, 6))
         # pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
         # nrow = 4
         # ncol = 3
         pn = 0
 
-        wl_ad = '_550'
+        wl_ad = '_{:}'.format(int(wl))
 
         # names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume']
         # names = ['RAMS_salt_film_alt', 'RAMS_salt_jet_alt', 'RAMS_salt_spume_alt']
-        names = self.parent._pop_types
+        # names = self.parent._pop_types
         # names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
         # #          'WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
         # colors = ['c','b','r',
@@ -602,15 +602,22 @@ class Plotting(object):
         # ls = ['-','-','-',
         #       '--','--','--','--']
 
-        names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
-                 'RAMS_dust1', 'RAMS_dust2',
-                 'RAMS_ccn',
-                 'RAMS_regen_aero1', 'RAMS_regen_aero2']
-        colors = ['c','b','steelblue',
-                  'DarkOrange', 'r',
-                  'm',
-                  'g','darkgreen']
-        ls = ['-']*8
+        names = pop_types
+        pop_colors = {
+            'RAMS_salt_film': 'c',
+            'RAMS_salt_jet': 'b',
+            'RAMS_salt_spume': 'steelblue',
+            'RAMS_dust1': 'DarkOrange',
+            'RAMS_dust2': 'r',
+            'RAMS_ccn': 'm',
+            'RAMS_regen_aero1': 'g',
+            'RAMS_regen_aero2': 'darkgreen'
+        }
+        if all([name in pop_colors for name in names]):
+            colors = [pop_colors[name] for name in names]
+        else:
+            colors = [None]*len(names)
+        ls = ['-']*len(names)
 
         for i in range(len(names)):
             n = names[i]
@@ -627,7 +634,7 @@ class Plotting(object):
         pl.xlabel('RH')
         pl.legend()
         # pl.title('RAMS & WRF sea salt population types\nMass Extinction Efficiency - Testing')
-        pl.title('RAMS population types\nMass Extinction Efficiency - Testing')
+        pl.title('Population Types\nMass Extinction Efficiency - Testing')
         pl.show()
 
         # Number distribution as well
@@ -647,11 +654,12 @@ class Plotting(object):
         pl.ylabel('Normalized\ndN/dlogDp')
         pl.legend()
         # pl.title('RAMS & WRF sea salt population types\nNumber Size Distribution - Testing')
-        pl.title('RAMS population types\nNumber Size Distribution - Testing')
+        pl.title('Population Types\nNumber Size Distribution - Testing')
         pl.show()
 
-    def pop_plot_only1(self, CNdist, BlankObject, output_dir, file_name):
+    def separate_pop_plot(self, CNdist, BlankObject, output_dir, file_name):
         # One plot for each pop type in file - hdf5 files only
+        # Can handle variable median diameters used in RAMS pop types
         for pop_type in self.parent._pop_types:
             pl.figure(figsize=(10, 4))
             pl.subplots_adjust(bottom=0.15, top=0.85, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
@@ -659,8 +667,13 @@ class Plotting(object):
             ncol = 3
             pn = 0
 
-            dry_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['dry'][pop_type].value])
-            wet_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['wet'][pop_type].value])
+            if hasattr(self.parent, '_plot_f'):
+                dry_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['dry'][pop_type].value])
+                wet_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['wet'][pop_type].value])
+            else:
+                dry_AOD = getattr(self.parent.AOD, pop_type).dry.AOD
+                wet_AOD = getattr(self.parent.AOD, pop_type).wet.AOD
+
             spam = pop_type + '_{}'.format(int(self.parent._wl))
             try:
                 eggs = getattr(self.parent._analysis, spam)
@@ -687,7 +700,6 @@ class Plotting(object):
                 ham = a[np.where(eggs <= a)[0][0]]
                 return min(spam*ham, 5.0)
 
-            name = pop_type
             aod_log = False
             aod_min = None
             aodd_max = get_max(dry_AOD)
@@ -712,7 +724,8 @@ class Plotting(object):
                 self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title='Median Diameter: {:.2f} nm'.format(median_mu))
 
             fn_short = '.'.join(file_name.split('.')[:-1])
-            pl.suptitle(fn_short)
+            title = '{}-{}'.format(fn_short, pop_type)
+            pl.suptitle(title)
             # pl.show()
-            pl.savefig(os.path.join(output_dir, fn_short + '-simpleAOD.png'))
+            pl.savefig(os.path.join(output_dir, '{}-{}'.format(title, 'AOD.png')))
             pl.close()
