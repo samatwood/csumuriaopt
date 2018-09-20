@@ -3898,7 +3898,7 @@ class RAMS(ModelAnalysis):
         self._precalc_grid_params()
         self._plot_fn = file_name
         self._plot_f = h5py.File(os.path.join(self._output_dir, file_name))
-        self._pop_types = [str(spam) for spam in self._plot_f['wl_nm-550']['AOD']['dry'].keys()]
+        self._pop_types = [str(spam) for spam in self._plot_f['wl_nm-{}'.format(int(self._wl))]['AOD']['dry'].keys()]
         if 'Total' not in self._pop_types:
             self._load_pop_data()
         self._plot.separate_pop_plot(CNdist, BlankObject, self._output_dir, file_name)

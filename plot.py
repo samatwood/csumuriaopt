@@ -453,7 +453,7 @@ class Plotting(object):
         pn = 0
 
         names = ['RAMS_salt_jet']
-        wl_ad = '_550'
+        wl_ad = '_{}'.format(int(self.parent._wl))
         aod_log = [False, False, False, False]
         aod_min = [None, None, None, None]
         aod_max = [0.10, 0.10, 1.0, 1.0]
@@ -503,7 +503,7 @@ class Plotting(object):
         pn = 0
 
         names = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume', 'RAMS_dust1', 'RAMS_dust2']
-        wl_ad = '_550'
+        wl_ad = '_{}'.format(int(self.parent._wl))
         aod_log = [False, False, True, False, False]
         aod_min = [None, None, None, None, None]
         aod_max = [0.01, 0.10, 1e-5, 2.0, 2.0]
@@ -539,7 +539,7 @@ class Plotting(object):
         pn = 0
 
         names2 = ['RAMS_ccn', 'RAMS_regen_aero1', 'RAMS_regen_aero2']
-        wl_ad = '_550'
+        wl_ad = '_{}'.format(int(self.parent._wl))
         aod_log = [False, False, False, False, False]
         aod_min = [None, None, None, None, None]
         aod_max = [0.01, 0.10, 0.10, 0.10, 3.0]
@@ -668,8 +668,8 @@ class Plotting(object):
             pn = 0
 
             if hasattr(self.parent, '_plot_f'):
-                dry_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['dry'][pop_type].value])
-                wet_AOD = np.array([self.parent._plot_f['wl_nm-550']['AOD']['wet'][pop_type].value])
+                dry_AOD = np.array([self.parent._plot_f['wl_nm-{}'.format(int(self.parent._wl))]['AOD']['dry'][pop_type].value])
+                wet_AOD = np.array([self.parent._plot_f['wl_nm-{}'.format(int(self.parent._wl))]['AOD']['wet'][pop_type].value])
             else:
                 dry_AOD = getattr(self.parent.AOD, pop_type).dry.AOD
                 wet_AOD = getattr(self.parent.AOD, pop_type).wet.AOD
