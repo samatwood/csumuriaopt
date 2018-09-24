@@ -3633,7 +3633,9 @@ class RAMS(ModelAnalysis):
             pop_data = self._f[self._pop_type_to_model_var[pop_type]+'_medrad'].value
             # Convert um to nm
             pop_data = pop_data * 1000.
-            setattr(self._data, pop_type+'_medrad', pop_data)
+            # Convert to Diameter
+            pop_data = pop_data * 2.
+            setattr(self._data, pop_type+'_meddiam', pop_data)
 
         # # Number concentration variable
         # if self._model_var_conc_type == 'number':
@@ -3646,18 +3648,18 @@ class RAMS(ModelAnalysis):
             pop_data = self._f[self._pop_type_to_model_var[pop_type]+'_mass'].value
             pop_obj = getattr(self._analysis, self._pop_type_to_pop_name[pop_type])
 
-            # Now need to interpolate medrad number to volume ratio for all data points in pop_data
-            medrad = getattr(self._data, pop_type+'_medrad')
-            assert np.shape(medrad) == np.shape(pop_data)
+            # Now need to interpolate median diameter to volume ratio for all data points in pop_data
+            mu = getattr(self._data, pop_type+'_meddiam')
+            assert np.shape(mu) == np.shape(pop_data)
 
             pop_data = pop_data / pop_obj._density
             if hasattr(pop_obj, 'num_vol_ratio'):
-                eggs = pop_obj.num_vol_ratio(medrad)
+                eggs = pop_obj.num_vol_ratio(mu)
             else:
                 eggs = pop_obj._num_vol_ratio
             # eggs = pop_obj.data.CNconc.d[0] / pop_obj.data.Volconc.d[0]
             pop_data = pop_data * eggs
-            pop_data[medrad == 0.] = 0.
+            pop_data[mu == 0.] = 0.
             setattr(self._data, pop_type, pop_data)
 
     def _load_rh(self):
@@ -3681,11 +3683,11 @@ class RAMS(ModelAnalysis):
             if pop_obj._mu_interp:
                 ext_func = pop_obj.mu_ext_cn
                 # Dry aerosol extinction coeff (Mm^-1)
-                setattr(getattr(self.ext, pop_type), 'dry', ext_func(getattr(self._data, pop_type+'_medrad'),
+                setattr(getattr(self.ext, pop_type), 'dry', ext_func(getattr(self._data, pop_type+'_meddiam'),
                                                                      0.,
                                                                      getattr(self._data, pop_type)))
                 # Humidified aerosol extinction coeff (Mm^-1)
-                setattr(getattr(self.ext, pop_type), 'wet', ext_func(getattr(self._data, pop_type+'_medrad'),
+                setattr(getattr(self.ext, pop_type), 'wet', ext_func(getattr(self._data, pop_type+'_meddiam'),
                                                                      self._data.RH,
                                                                      getattr(self._data, pop_type)))
             else:
