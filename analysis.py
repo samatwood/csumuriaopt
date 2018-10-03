@@ -3474,7 +3474,12 @@ class ModelAnalysis(object):
             self._pop_types = pop_types
             self._pop_names = ['{}_{}'.format(spam, int(self._wl)) for spam in self._pop_types]
             self._pop_type_to_pop_name = {spam: '{}_{}'.format(spam, int(self._wl)) for spam in self._pop_types}
-            self._load_pop_types(pop_opt_dir, self._pop_names)
+            try:
+                self._load_pop_types(pop_opt_dir, self._pop_names)
+            except IOError:
+                if not plot_existing:
+                    raise IOError
+                self._pop_type_IOError = True
         # Load Yang dust database methods
         # TODO:
         # Get all model files in directory
@@ -3901,6 +3906,6 @@ class RAMS(ModelAnalysis):
         self._plot_fn = file_name
         self._plot_f = h5py.File(os.path.join(self._output_dir, file_name))
         self._pop_types = [str(spam) for spam in self._plot_f['wl_nm-{}'.format(int(self._wl))]['AOD']['dry'].keys()]
-        if 'Total' not in self._pop_types:
+        if not hasattr(self, '_pop_type_IOError') and 'Total' not in self._pop_types:
             self._load_pop_data()
         self._plot.separate_pop_plot(CNdist, BlankObject, self._output_dir, file_name)

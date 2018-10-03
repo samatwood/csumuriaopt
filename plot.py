@@ -680,11 +680,14 @@ class Plotting(object):
             except:
                 eggs = None
                 obj2 = None
+            if hasattr(self.parent, '_pop_type_IOError'):
+                eggs = None
+                obj2 = None
             if eggs:
                 if eggs._mu_interp:
                     # HACK: only works in one situation as specified for case specific RAMS runs
                     ham = getattr(eggs, eggs.mu_dist_objs[0])._p_parms[0]
-                    median_mu = np.median(getattr(self.parent._data, pop_type + '_medrad'))
+                    median_mu = np.median(getattr(self.parent._data, pop_type + '_meddiam'))
                     ham[0] = median_mu
                     eggs = BlankObject()
                     eggs.n = 1
@@ -718,7 +721,7 @@ class Plotting(object):
                              cb_log=aod_log, cb_min=aod_min, cb_max=aodw_max, cb_extend='max', cb_label='AOD',
                              ax=ax, title='Humidified AOD')
 
-            if pop_type != 'Total':
+            if pop_type != 'Total' and obj2:
                 pn += 1
                 ax = pl.subplot(nrow, ncol, pn)
                 self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title='Median Diameter: {:.2f} nm'.format(median_mu))
