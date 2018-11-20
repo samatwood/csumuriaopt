@@ -3447,6 +3447,16 @@ class ModelAnalysis(object):
         WRF_SEAS_2='SEAS_2',
         WRF_SEAS_3='SEAS_3',
         WRF_SEAS_4='SEAS_4',
+        WRF_DUST_1='DUST_1',
+        WRF_DUST_2='DUST_2',
+        WRF_DUST_3='DUST_3',
+        WRF_DUST_4='DUST_4',
+        WRF_DUST_5='DUST_5',
+        WRF_sulf='sulf',
+        WRF_OC1='OC1',
+        WRF_OC2='OC2',
+        WRF_BC1='BC1',
+        WRF_BC2='BC2',
     )
 
     @abc.abstractmethod
@@ -3534,7 +3544,7 @@ class ModelAnalysis(object):
         return
 
     @abc.abstractmethod
-    def _process_model_output(self, file_name, plotting=False, name_append=None):
+    def _process_model_output(self, file_name, plot_output=False, name_append=None):
         return
 
     @abc.abstractmethod
@@ -3559,25 +3569,327 @@ class WRF(ModelAnalysis):
     Assumes WRF data is passed as a netCDF Dataset.
 
     """
-
-    def __init__(self, model_file_dir, output_dir, pop_opt_dir, dust_db_dir):
-        # Load WRF-CHEM population type objects
-        default_pop_types = ['WRF_SEAS_1', 'WRF_SEAS_2'] #, 'WRF_SEAS_3', 'WRF_SEAS_4',
-                             # 'WRF_DUST_1', 'WRF_DUST_2', 'WRF_DUST_3', 'WRF_DUST_4', 'WRF_DUST_5',
-                             # 'WRF_BC1', 'WRF_BC2', 'WRF_OC1', 'WRF_OC2',
-                             # 'WRF_SULF']
-        pop_type_to_model_var = dict(
-            WRF_SEAS_1='SEAS_1',
-            WRF_SEAS_2='SEAS_2'
-        )
-        super(WRF, self).__init__(wl,
-                                  model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
-                                  pop_types=default_pop_types,
-                                  pop_type_to_model_var=pop_type_to_model_var
-                                  )
+    def __init__(self, wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir,
+                 **kwargs):
+        # Load WRF population type objects
+        super(WRF, self).__init__(wl, model_file_dir, output_dir, pop_opt_dir, dust_db_dir, **kwargs)
 
     def _load_model_file(self, file_name):
+        self._fn = file_name
         self._f = ncdf.Dataset(os.path.join(self._model_file_dir, file_name))
+
+    def _precalc_grid_params(self):
+        """WRF specific grid parameter calculations.
+
+        Grid variables are set for each grid box. Includes lat and lon of grid centers, and vertical grid height in Mm.
+
+        Required class arguments:
+            None
+        """
+        # Dimensions: t, z, y, x
+        self._shape = self._f.variables['SEAS_1'].shape
+        t,z,y,x = self._shape
+        self._shape_horiz = (t,y,x)
+
+        # Grid height calc in Mm
+        # Base-state Geopotential (m^2 / s^2) [t,z+1,y,x]
+        phb = self._f.variables['PHB'][:]
+        # Perturbation Geopotential (m^2 / s^2) [t,z+1,y,x]
+        ph = self._f.variables['PH'][:]
+        # Geopotential Height (m) [t,z+1,y,x]
+        z = (phb+ph) / 9.81
+        # Grid cell height (m) [t,z,y,x]
+        dz = z[:,1:,:,:] - z[:,:-1,:,:]
+
+        # Set grid variables
+        self._data.lat = self._f['XLAT'][:]
+        self._data.lon = self._f['XLONG'][:]
+        self._data.dz = dz / 1e6  # (Mm)
+
+    def _load_pop_data(self):
+        """Loads population concentration data and RH here as well."""
+        # Perturbation pressure (Pa) [t,z,y,x]
+        p = self._f.variables['P'][:]
+        # Base-state pressure (Pa) [t,z,y,x]
+        pb = self._f.variables['PB'][:]
+        # Total Pressure (Pa) [t,z,y,x]
+        p_tot = p+pb
+        # Perturbation Potential Temperature (K) [t,z,y,x]
+        theta_wrf = self._f.variables['T'][:]
+        # Total Potential Temperature (K) [t,z,y,x]
+        theta_tot = theta_wrf + 300.
+        # Reference Pressure (Pa)
+        p0 = 1e5
+        # Gas constant / specific heat of air
+        k = 0.2854
+        # Normal Temperature (K) [t,z,y,x]
+        t = theta_tot * np.power((p_tot/p0),k)
+        # Normal Temperature (C) [t,z,y,x]
+        t_c = t - 273.15
+        # Saturation Water Vapor Pressure (Pa) [t,z,y,x]
+        e_sat = 611.21 * np.exp((18.678 - t_c/234.5)*(t_c/(257.14 + t_c)))
+        # Saturation Mixing Ratio (kg / kg_air) [t,z,y,x]
+        q_sat = 0.622 * (e_sat/(p_tot - e_sat))
+        # Environmental Water Vapor Mixing Ratio (kg / kg_air) [t,z,y,x]
+        q = self._f.variables['QVAPOR'][:]
+        # Relative Humidity (%) [t,z,y,x]
+        rh = 100.0 * (q/q_sat)
+        # Remove saturated grid boxes (assumed as RH above 99%) or cap RH at 99%
+        if self._cap_rh:
+            rh[rh > 99.0] = 99.0
+        else:
+            rh[rh > 99.0] = np.NaN
+        # Set negative calculated RH to 0
+        rh[rh < 0.0] = 0.0
+        # Set RH variable
+        self._data.RH = rh
+
+        # Mass concentration variable to number concentration
+        for pop_type in self._pop_types:
+            # Aerosol population type Mass Mixing Ratio (ug / kg_dryair) [t,z,y,x]
+            pop_data = self._f.variables[self._pop_type_to_model_var[pop_type]][:]
+            # Air Density (kg / m^3) [t,z,y,x]
+            q_dryair = p_tot/(287.05*t)
+            # Aerosol population type Mass Concentration (ug / m^3) [t,z,y,x]
+            pop_massconc = pop_data * q_dryair
+
+            pop_obj = getattr(self._analysis, self._pop_type_to_pop_name[pop_type])
+
+            # - No median diameter adjustment for WRF -
+            # Now need to interpolate median diameter to volume ratio for all data points in pop_data
+            # mu = getattr(self._data, pop_type+'_meddiam')
+            # assert np.shape(mu) == np.shape(pop_data)
+            # pop_data = pop_data / pop_obj._density
+            # if hasattr(pop_obj, 'num_vol_ratio'):
+            #     eggs = pop_obj.num_vol_ratio(mu)
+            # else:
+            #     eggs = pop_obj._num_vol_ratio
+            # # eggs = pop_obj.data.CNconc.d[0] / pop_obj.data.Volconc.d[0]
+            # pop_data[mu == 0.] = 0.
+
+            # Population Volume Concentration (um_aer^3 / cm_air^3)
+            pop_volconc = pop_massconc / pop_obj._density
+            # Population Number Concentration (# / cm^3)
+            pop_numconc = pop_volconc * pop_obj._num_vol_ratio
+            # Set Aerosol population type Number Concentration variable
+            setattr(self._data, pop_type, pop_numconc)
+
+    def _ext_calc(self):  # TODO:
+        # Create data object to hold extinction data
+        setattr(self, 'ext', BlankObject())
+        # For each aerosol population type in self._pop_types
+        for pop_type in self._pop_types:
+            # Create data object to hold extinction data
+            setattr(self.ext, pop_type, BlankObject())
+            # Extinction interpolator  # NOTE: Number concentration currently
+            pop_obj = getattr(self._analysis, self._pop_type_to_pop_name[pop_type])
+            if pop_obj._mu_interp:
+                ext_func = pop_obj.mu_ext_cn
+                # Dry aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'dry', ext_func(getattr(self._data, pop_type+'_meddiam'),
+                                                                     0.,
+                                                                     getattr(self._data, pop_type)))
+                # Humidified aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'wet', ext_func(getattr(self._data, pop_type+'_meddiam'),
+                                                                     self._data.RH,
+                                                                     getattr(self._data, pop_type)))
+            else:
+                ext_func = pop_obj.opt.ext_cn
+                # Dry aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'dry', ext_func(0., getattr(self._data, pop_type)))
+                # Humidified aerosol extinction coeff (Mm^-1)
+                setattr(getattr(self.ext, pop_type), 'wet', ext_func(self._data.RH, getattr(self._data, pop_type)))
+
+    def _AOD_calc(self):  # TODO:
+        # Create data object to hold AOD data
+        self.AOD = BlankObject()
+        # For each aerosol population type in self._pop_types
+        for pop_type in self._pop_types:
+            setattr(self.AOD, pop_type, BlankObject())
+            for hum_type in ['dry','wet']:
+                setattr(getattr(self.AOD, pop_type), hum_type, BlankObject())
+                ext_pop_obj = getattr(getattr(self.ext, pop_type), hum_type)
+                AOD_pop_obj = getattr(getattr(self.AOD, pop_type), hum_type)
+                # Calculate and save AOD variables
+                setattr(AOD_pop_obj, 'AOD_grid', ext_pop_obj * self._data.dz)
+                setattr(AOD_pop_obj, 'AOD_cumsum', np.cumsum(AOD_pop_obj.AOD_grid, axis=1))
+                setattr(AOD_pop_obj, 'AOD', np.sum(AOD_pop_obj.AOD_grid, axis=1))
+                setattr(AOD_pop_obj, 'AOD_frac', AOD_pop_obj.AOD_grid / AOD_pop_obj.AOD)
+                setattr(AOD_pop_obj, 'AOD_cumfrac', np.cumsum(AOD_pop_obj.AOD_frac, axis=1))
+
+    def _save_output(self, file_name, name_append=None, total_only=False):  # TODO:
+        # Set the data type to save floating point values as (affects resulting file size)
+        dtype = 'f4'  # Default 4 byte (32 bit) floating point
+        if name_append is None:
+            name_append = ''
+        # Modify file name to indicate optical data output
+        file_name_components = file_name.split('.')
+        file_name_components[-2] = file_name_components[-2] + '-opt' + name_append
+        h_file_name = '.'.join(file_name_components[:-1]+['h5'])
+        n_file_name = '.'.join(file_name_components[:-1]+['nc'])
+
+        # Compression options, only applies to hdf5 files currently
+        if self._save_compression is True:
+            # Set to 'gzip' compression with compression level of 6
+            compression = 6
+        elif self._save_compression is None:
+            compression = None
+        else:
+            assert isinstance(self._save_compression, (int, str))
+            compression = self._save_compression
+
+        # --- HDF5 save---
+        if self._save_hdf5:
+            # Create writable HDF5 file
+            h_file = h5py.File(os.path.join(self._output_dir, h_file_name), 'w')
+            # Create groups for the wavelength of the calculation and to hold AOD and extinction coefficient variables
+            wl_group = h_file.create_group('wl_nm-{:d}'.format(int(self._wl)))
+            AOD_group = wl_group.create_group('AOD')
+            AOD_dry_group = AOD_group.create_group('dry')
+            AOD_wet_group = AOD_group.create_group('wet')
+            ex_group = wl_group.create_group('ext')
+            ex_dry_group = ex_group.create_group('dry')
+            ex_wet_group = ex_group.create_group('wet')
+            # For each aerosol population type save the dry and wet ext and AOD values
+            if not total_only:
+                for pop_type in self._pop_types:
+                    AOD_dry_group.create_dataset(pop_type,
+                        data=np.squeeze(getattr(self.AOD, pop_type).dry.AOD),
+                        compression=compression,
+                        dtype=dtype)
+                    AOD_wet_group.create_dataset(pop_type,
+                        data=np.squeeze(getattr(self.AOD, pop_type).wet.AOD),
+                        compression=compression,
+                        dtype=dtype)
+                    ex_dry_group.create_dataset(pop_type,
+                        data=np.squeeze(getattr(self.ext, pop_type).dry),
+                        compression=compression,
+                        dtype=dtype)
+                    ex_wet_group.create_dataset(pop_type,
+                        data=np.squeeze(getattr(self.ext, pop_type).wet),
+                        compression=compression,
+                        dtype=dtype)
+            # For total of all aerosol population types save the dry and wet ext and AOD values
+            pop_type = 'Total'
+            if not self._separate_pop_types:
+                AOD_dry_group.create_dataset(pop_type,
+                    data=np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0)),
+                    compression=compression,
+                    dtype=dtype)
+                AOD_wet_group.create_dataset(pop_type,
+                    data=np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0)),
+                    compression=compression,
+                    dtype=dtype)
+                ex_dry_group.create_dataset(pop_type,
+                    data=np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0)),
+                    compression=compression,
+                    dtype=dtype)
+                ex_wet_group.create_dataset(pop_type,
+                    data=np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0)),
+                    compression=compression,
+                    dtype=dtype)
+            if total_only:
+                AOD_dry, AOD_wet, ext_dry, ext_wet = total_only
+                AOD_dry_group.create_dataset(pop_type,
+                    data=AOD_dry,
+                    compression=compression,
+                    dtype=dtype)
+                AOD_wet_group.create_dataset(pop_type,
+                    data=AOD_wet,
+                    compression=compression,
+                    dtype=dtype)
+                ex_dry_group.create_dataset(pop_type,
+                    data=ext_dry,
+                    compression=compression,
+                    dtype=dtype)
+                ex_wet_group.create_dataset(pop_type,
+                    data=ext_wet,
+                    compression=compression,
+                    dtype=dtype)
+
+        # --- netCDF4 save ---
+        if self._save_netcdf4:
+            # Create writable netCDF4 file
+            n_file = ncdf.Dataset(os.path.join(self._output_dir, n_file_name), 'w')
+            # Create groups for the wavelength of the calculation and to hold AOD and extinction coefficient variables
+            wl_group = n_file.createGroup('wl_nm-{:d}'.format(int(self._wl)))
+            AOD_group = wl_group.createGroup('AOD')
+            AOD_dry_group = AOD_group.createGroup('dry')
+            AOD_wet_group = AOD_group.createGroup('wet')
+            ex_group = wl_group.createGroup('ext')
+            ex_dry_group = ex_group.createGroup('dry')
+            ex_wet_group = ex_group.createGroup('wet')
+            # Dimensions
+            n_file.createDimension('t', self._shape[0])
+            n_file.createDimension('z', self._shape[1])
+            n_file.createDimension('y', self._shape[2])
+            n_file.createDimension('x', self._shape[3])
+            # For each aerosol population type save the dry and wet ext and AOD values
+            if not total_only:
+                for pop_type in self._pop_types:
+                    var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
+                    var[:] = np.squeeze(getattr(self.AOD, pop_type).dry.AOD)
+                    var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
+                    var[:] = np.squeeze(getattr(self.AOD, pop_type).wet.AOD)
+                    var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
+                    var[:] = np.squeeze(getattr(self.ext, pop_type).dry)
+                    var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
+                    var[:] = np.squeeze(getattr(self.ext, pop_type).wet)
+            # For total of all aerosol population types save the dry and wet ext and AOD values
+            pop_type = 'Total'
+            if not self._separate_pop_types:
+                var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
+                var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0))
+                var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
+                var[:] = np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0))
+                var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
+                var[:] = np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0))
+                var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
+                var[:] = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
+            if total_only:
+                AOD_dry, AOD_wet, ext_dry, ext_wet = total_only
+                var = AOD_dry_group.createVariable(pop_type, dtype, ('y','x'))
+                var[:] = AOD_dry
+                var = AOD_wet_group.createVariable(pop_type, dtype, ('y','x'))
+                var[:] = AOD_wet
+                var = ex_dry_group.createVariable(pop_type, dtype, ('z','y','x'))
+                var[:] = ext_dry
+                var = ex_wet_group.createVariable(pop_type, dtype, ('z','y','x'))
+                var[:] = ext_wet
+
+        # If separate pop types, return variables for summing and saving total
+        if self._separate_pop_types:
+            AOD_dry = np.squeeze(np.nansum([getattr(self.AOD, n).dry.AOD for n in self._pop_types], axis=0))
+            AOD_wet = np.squeeze(np.nansum([getattr(self.AOD, n).wet.AOD for n in self._pop_types], axis=0))
+            ext_dry = np.squeeze(np.nansum([getattr(self.ext, n).dry for n in self._pop_types], axis=0))
+            ext_wet = np.squeeze(np.nansum([getattr(self.ext, n).wet for n in self._pop_types], axis=0))
+            return (AOD_dry, AOD_wet, ext_dry, ext_wet)
+
+        return None
+
+    def _process_model_output(self, file_name, plot_output=False, name_append=None):
+        # Load the NetCDF file
+        self._load_model_file(file_name)
+        # Load external given model parameters
+        self._precalc_grid_params()
+        # Load RH data and aerosol population concentration data
+        self._load_pop_data()
+        # Calculate extinction variables for each grid box
+        self._ext_calc()
+        # Reconstruct AOD for each grid column
+        self._AOD_calc()
+        # Save output to file
+        spam = self._save_output(file_name, name_append)
+        # Save example plot to file
+        if plot_output:
+            if self._separate_pop_types:
+                self._plot.separate_pop_plot(CNdist, BlankObject, self._output_dir, file_name)
+            else:
+                # Just plotting individual pop types in case pop types change
+                self._plot.separate_pop_plot(CNdist, BlankObject, self._output_dir, file_name)
+                # self._plot.pop_AOD_method1(self._output_dir, file_name)
+                # self._plot.pop_AOD_example(self._output_dir, file_name)
+        return spam
 
 
 class RAMS(ModelAnalysis):

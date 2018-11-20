@@ -298,6 +298,14 @@ class Plotting(object):
         if title is not None:
             pl.title(title)
 
+    def _get_max(self, arr):
+        v = np.nanmax(np.atleast_1d(arr))
+        spam = np.power(10,np.ceil(np.log10(np.nanmax(v))))
+        eggs = v/spam
+        a = np.array([0.1,0.2,0.5,1.0])
+        ham = a[np.where(eggs <= a)[0][0]]
+        return min(spam*ham, 5.0)
+
     def simple_dist_plot(self, cnobj, ind, xlim=None, ls='-', c='r', label=None,
                          plot_voldist=True, dmy=False, ax=None, title=None):
         # Plot setup
@@ -695,25 +703,17 @@ class Plotting(object):
                 else:
                     obj2 = eggs
 
-            def get_max(arr):
-                v = np.nanmax(np.atleast_1d(arr))
-                spam = np.power(10,np.ceil(np.log10(np.nanmax(v))))
-                eggs = v/spam
-                a = np.array([0.1,0.2,0.5,1.0])
-                ham = a[np.where(eggs <= a)[0][0]]
-                return min(spam*ham, 5.0)
-
             aod_log = False
             aod_min = None
-            aodd_max = get_max(dry_AOD)
-            aodw_max =get_max(wet_AOD)
+            aodd_max = self._get_max(dry_AOD)
+            aodw_max = self._get_max(wet_AOD)
             xlim = [1e1, 3e5]
 
             pn+=1
             ax = pl.subplot(nrow, ncol, pn)
             self.contour_map(dry_AOD,
                              cb_log=aod_log, cb_min=aod_min, cb_max=aodd_max, cb_extend='max', cb_label='AOD',
-                             ax=ax, title='dry AOD')
+                             ax=ax, title='Dry AOD')
 
             pn+=1
             ax = pl.subplot(nrow, ncol, pn)
@@ -723,12 +723,172 @@ class Plotting(object):
 
             if pop_type != 'Total' and obj2:
                 pn += 1
+                if eggs._mu_interp:
+                    title = 'Median Diameter: {:.2f} nm'.format(median_mu)
+                else:
+                    title = 'Population Distribution'
                 ax = pl.subplot(nrow, ncol, pn)
-                self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title='Median Diameter: {:.2f} nm'.format(median_mu))
+                self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title=title)
 
             fn_short = '.'.join(file_name.split('.')[:-1])
             title = '{}-{}'.format(fn_short, pop_type)
             pl.suptitle(title)
             # pl.show()
             pl.savefig(os.path.join(output_dir, '{}-{}'.format(title, 'AOD.png')))
+            pl.close()
+
+    def wrf_std_plot(self, file_name, save=True):
+        # - Sea-salt species -
+        pl.figure(figsize=(10, 16))
+        pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        nrow = 4
+        ncol = 3
+        pn = 0
+
+        salt_names = ['WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
+        wl_ad = '_{}'.format(int(self.parent._wl))
+        aod_log = [False, False, False, False]
+        aod_min = [None, None, None, None]
+        #aod_max = [0.10, 0.10, 0.10, 0.10]
+        xlim = [1e1, 3e5]
+
+        for i in range(len(salt_names)):
+            n = salt_names[i]
+            obj = getattr(self.parent.AOD, n)
+            obj2 = getattr(self.parent._analysis, n+wl_ad)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.dry.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(obj.dry.AOD), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Dry')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.wet.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(obj.wet.AOD), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Humidified')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title=n)
+
+        # pl.show()
+        if save:
+            fn_short = '.'.join(file_name.split('.')[:-1])
+            pl.savefig(os.path.join(self.parent._output_dir, fn_short + '-WRF_SEAS-AOD.png'))
+            pl.close()
+
+        # - Dust species -
+        pl.figure(figsize=(10, 20))
+        pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        nrow = 5
+        ncol = 3
+        pn = 0
+
+        dust_names = ['WRF_DUST_1', 'WRF_DUST_2', 'WRF_DUST_3', 'WRF_DUST_4', 'WRF_DUST_5']
+        wl_ad = '_{}'.format(int(self.parent._wl))
+        aod_log = [False, False, False, False, False]
+        aod_min = [None, None, None, None, None]
+        #aod_max = [0.10, 0.10, 0.10, 0.10, 0.10]
+        xlim = [1e1, 3e5]
+
+        for i in range(len(dust_names)):
+            n = dust_names[i]
+            obj = getattr(self.parent.AOD, n)
+            obj2 = getattr(self.parent._analysis, n+wl_ad)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.dry.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(obj.dry.AOD), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Dry')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.wet.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(obj.wet.AOD), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Humidified')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title=n)
+
+        # pl.show()
+        if save:
+            fn_short = '.'.join(file_name.split('.')[:-1])
+            pl.savefig(os.path.join(self.parent._output_dir, fn_short + '-WRF_DUST-AOD.png'))
+            pl.close()
+
+        # - Other species -
+        pl.figure(figsize=(10, 20))
+        pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        nrow = 5
+        ncol = 3
+        pn = 0
+
+        other_names = ['WRF_sulf', 'WRF_OC1', 'WRF_OC2']  #, 'WRF_BC1', 'WRF_BC2']
+        wl_ad = '_{}'.format(int(self.parent._wl))
+        aod_log = [False, False, False, False, False]
+        aod_min = [None, None, None, None, None]
+        #aod_max = [0.10, 0.10, 0.10, 0.10, 0.10]
+        xlim = [1e1, 3e5]
+
+        for i in range(len(other_names)):
+            n = other_names[i]
+            obj = getattr(self.parent.AOD, n)
+            obj2 = getattr(self.parent._analysis, n+wl_ad)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.dry.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(obj.dry.AOD), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Dry')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(obj.wet.AOD,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(obj.wet.AOD), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Humidified')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.simple_dist_plot(obj2, 0, ax=ax, xlim=xlim, title=n)
+
+        # pl.show()
+        if save:
+            fn_short = '.'.join(file_name.split('.')[:-1])
+            pl.savefig(os.path.join(self.parent._output_dir, fn_short + '-WRF_sulf_c-AOD.png'))
+            pl.close()
+
+        # - Total -
+        pl.figure(figsize=(7, 4))
+        #pl.subplots_adjust(bottom=0.07, top=0.97, left=0.07, right=0.97, hspace=0.35, wspace=0.3)
+        nrow = 1
+        ncol = 2
+        pn = 0
+
+        names = ['Total']
+        wl_ad = '_{}'.format(int(self.parent._wl))
+        aod_log = [False, False, False, False, False]
+        aod_min = [None, None, None, None, None]
+        #aod_max = [0.10, 0.10, 0.10, 0.10, 0.10]
+        xlim = [1e1, 3e5]
+
+        names_all = salt_names + dust_names + other_names
+        tot_dry = np.nansum([getattr(self.parent.AOD, n).dry.AOD for n in names_all], axis=0)
+        tot_wet = np.nansum([getattr(self.parent.AOD, n).wet.AOD for n in names_all], axis=0)
+
+        for i in range(len(names)):
+            n = names[i]
+            #obj = getattr(self.parent.AOD, n)
+            #obj2 = getattr(self.parent._analysis, n+wl_ad)
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(tot_dry,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(tot_dry), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Dry')
+            pn+=1
+            ax = pl.subplot(nrow, ncol, pn)
+            self.contour_map(tot_wet,
+                             cb_log=aod_log[i], cb_min=aod_min[i], cb_max=self._get_max(tot_wet), cb_extend='max', cb_label='AOD',
+                             ax=ax, title='Humidified')
+
+        pl.suptitle('Total AOD')
+
+        # pl.show()
+        if save:
+            fn_short = '.'.join(file_name.split('.')[:-1])
+            pl.savefig(os.path.join(self.parent._output_dir, fn_short + '-WRF_Total-AOD.png'))
             pl.close()

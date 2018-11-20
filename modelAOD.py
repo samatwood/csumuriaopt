@@ -24,22 +24,22 @@ pop_opt_dir=os.path.join(base_dir,'model_pop')
 dust_db_dir=os.path.join(base_dir,'dust_db')
 
 # - Pre-processing options -
-recompute_model_aerosol_types = False   # Computes stored aerosol lookup tables (only need to do once)
+recompute_model_aerosol_types = True   # Computes stored aerosol lookup tables (only need to do once)
                                         # All aerosol population types listed in model_pop.py will be computed
                                         # NOTE: Population parameters may need to be changed for different wavelengths
 
 # - Run options -
-run_RAMS = True                         # Run RAMS aerosol AOD computation
-run_WRF = False                         # Run WRF aerosol AOD computation (Not yet setup)
+run_RAMS = False                         # Run RAMS aerosol AOD computation
+run_WRF = True                         # Run WRF aerosol AOD computation (Not yet setup)
 
 # - File output options -
-save_hdf5 = True                        # Save hdf5 output files
-save_netcdf4 = False                    # Save netCDF4 output files
+save_hdf5 = False                        # Save hdf5 output files
+save_netcdf4 = True                    # Save netCDF4 output files
 compress_output = False                 # Compress output files (only applies to hdf5 files currently)
-separate_pop_types = True               # Run and save AOD for each aerosol type separately in memory limited conditions
+separate_pop_types = False               # Run and save AOD for each aerosol type separately in memory limited conditions
 
 # - Plotting options -
-plot_output = True                      # Plot sample dry and wet AOD and size distributions for each population type
+plot_output = False                      # Plot sample dry and wet AOD and size distributions for each population type
 plot_existing = False                   # Plot existing hdf5 output files as separate population types (no model run)
 plot_fRH = False                        # Plot fRH curves for population types (no model run)
                                         # NOTE: This doesn't yet work for pop types with variable median diameters
@@ -72,8 +72,15 @@ RAMS_pop_types = ['RAMS_salt_film', 'RAMS_salt_jet', 'RAMS_salt_spume',
 
 # Available WRF-CHEM aerosol types
 # 'WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4'
+# 'WRF_DUST_1', 'WRF_DUST_2', 'WRF_DUST_3', 'WRF_DUST_4', 'WRF_DUST_5'
+# 'WRF_sulf', 'WRF_OC1', 'WRF_OC2', 'WRF_BC1', 'WRF_BC2'
 
-WRF_pop_types = ['WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4']
+WRF_pop_types = ['WRF_SEAS_1', 'WRF_SEAS_2', 'WRF_SEAS_3', 'WRF_SEAS_4',
+                 'WRF_DUST_1', 'WRF_DUST_2', 'WRF_DUST_3', 'WRF_DUST_4', 'WRF_DUST_5',
+                 'WRF_sulf',
+                 'WRF_OC1', 'WRF_OC2',
+                 #'WRF_BC1', 'WRF_BC2'  # FIXME: BC isn't working. Not sure why yet.
+                 ]
 
 
 # ------ Model Aerosol Population Types ------
@@ -119,11 +126,21 @@ if run_RAMS:
 
 # WRF model
 if run_WRF:
-    eggs = ada.WRF(model_file_dir=wrf_file_dir,
-                   output_dir=output_dir,
-                   pop_opt_dir=pop_opt_dir,
-                   dust_db_dir=dust_db_dir
-                   )
+    eggs = ada.WRF( wl=wl,
+                    model_file_dir=wrf_file_dir,
+                    output_dir=output_dir,
+                    pop_opt_dir=pop_opt_dir,
+                    dust_db_dir=dust_db_dir,
+                    pop_types = WRF_pop_types,
+                    separate_pop_types=separate_pop_types,
+                    cap_RH = cap_RH,
+                    plot_output=plot_output,
+                    plot_existing = plot_existing,
+                    plot_fRH = plot_fRH,
+                    save_hdf5 = save_hdf5,
+                    save_netcdf4 = save_netcdf4,
+                    compression = compress_output
+                    )
 
 
 # end = dt.datetime.now()
@@ -132,3 +149,4 @@ if run_WRF:
 # - Additional Plot methods -
 # spam._plot.pop_AOD_example()
 # spam._plot.pop_fRH()
+eggs._plot.wrf_std_plot(eggs.model_file_names[0])
